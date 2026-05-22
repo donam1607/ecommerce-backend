@@ -135,4 +135,98 @@ router.delete('/:id', protect, admin, async (req, res) => {
   }
 });
 
+// @desc    Create a new user (Admin only)
+// @route   POST /api/users
+router.post('/', protect, admin, async (req, res) => {
+  try {
+    const { name, email, password, role, phone, address, city, zip } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin bắt buộc (Tên, Email, Mật khẩu)' });
+    }
+
+    const userExists = await User.findOne({ where: { email } });
+    if (userExists) {
+      return res.status(400).json({ message: 'Email này đã được sử dụng bởi một tài khoản khác' });
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || 'user',
+      phone: phone || null,
+      address: address || null,
+      city: city || null,
+      zip: zip || null
+    });
+
+    res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone || "",
+      address: user.address || "",
+      city: user.city || "",
+      zip: user.zip || ""
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi tạo thành viên', error: error.message });
+  }
+});
+
+// @desc    Update user details (Admin only)
+// @route   PUT /api/users/:id
+router.put('/:id', protect, admin, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy thành viên này' });
+    }
+
+    const { name, email, password, role, phone, address, city, zip } = req.body;
+
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ where: { email } });
+      if (emailExists) {
+        return res.status(400).json({ message: 'Email này đã được sử dụng bởi một tài khoản khác' });
+      }
+      user.email = email;
+    }
+
+    // Ngăn chặn tự hạ quyền admin của chính mình
+    if (user.id === req.user.id && role && role !== 'admin') {
+      return res.status(400).json({ message: 'Bạn không thể tự hạ vai trò quản trị của chính mình để tránh mất quyền quản lý' });
+    }
+
+    user.name = name || user.name;
+    user.role = role || user.role;
+    user.phone = phone !== undefined ? phone : user.phone;
+    user.address = address !== undefined ? address : user.address;
+    user.city = city !== undefined ? city : user.city;
+    user.zip = zip !== undefined ? zip : user.zip;
+
+    if (password) {
+      user.password = password;
+    }
+
+    const updatedUser = await user.save();
+
+    res.json({
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      phone: updatedUser.phone || "",
+      address: updatedUser.address || "",
+      city: updatedUser.city || "",
+      zip: updatedUser.zip || ""
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật thành viên', error: error.message });
+  }
+});
+
 module.exports = router;
