@@ -22,6 +22,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.send('<h1>ShopTech API is running...</h1><p>Vui lòng truy cập các endpoint /api để lấy dữ liệu.</p>');
+});
+
 // Health check route
 app.get('/api/status', (req, res) => {
   res.json({
