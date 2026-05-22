@@ -8,9 +8,20 @@ dns.setDefaultResultOrder('ipv4first');
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   dialectOptions: {
-    ssl: { require: true, rejectUnauthorized: false }
+    ssl: { require: true, rejectUnauthorized: false },
+    // Cho phép kết nối qua Connection Pooler (Supavisor) của Supabase
+    keepAlive: true,
   },
-  logging: false
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+  logging: false,
+  retry: {
+    max: 3
+  }
 });
 
 const User = require('./models/User')(sequelize);
