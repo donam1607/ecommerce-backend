@@ -2,17 +2,13 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { v2: cloudinary } = require('cloudinary');
 const { protect, admin } = require('../auth.middleware');
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 // File filter (images only)
@@ -29,16 +25,37 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: fileFilter
 });
 
 const uploadSingle = upload.single('image');
 
-// @desc    Upload product image
+const uploadBufferToCloudinary = (buffer, originalname) =>
+  new Promise((resolve, reject) => {
+    const ext = path.extname(originalname || '').replace('.', '') || 'jpg';
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'shoptech/products',
+        resource_type: 'image',
+        format: ext,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
+
+// @desc    Upload product image to Cloudinary
 // @route   POST /api/upload
 router.post('/', protect, admin, (req, res) => {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return res.status(500).json({ message: 'Thiếu cấu hình Cloudinary trên server (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET).' });
+  }
+
   uploadSingle(req, res, function (err) {
     if (err instanceof multer.MulterError) {
       // A Multer error occurred when uploading (e.g. file size exceeded)
@@ -55,16 +72,20 @@ router.post('/', protect, admin, (req, res) => {
       return res.status(400).json({ message: 'Vui lòng chọn một file ảnh để tải lên!' });
     }
 
-    // Construct the URL dynamically
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.get('host');
-    const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
-
-    res.status(200).json({
-      message: 'Tải ảnh lên thành công',
-      imageUrl: imageUrl,
-      filename: req.file.filename
-    });
+    uploadBufferToCloudinary(req.file.buffer, req.file.originalname)
+      .then((result) => {
+        res.status(200).json({
+          message: 'Tải ảnh lên Cloudinary thành công',
+          imageUrl: result.secure_url,
+          filename: result.public_id,
+        });
+      })
+      .catch((uploadError) => {
+        res.status(500).json({
+          message: 'Lỗi tải ảnh lên Cloudinary',
+          error: uploadError.message,
+        });
+      });
   });
 });
 
