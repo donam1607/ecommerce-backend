@@ -31,6 +31,7 @@ const upload = multer({
 });
 
 const uploadSingle = upload.single('image');
+const uploadMultiple = upload.array('images', 10);
 
 const uploadBufferToCloudinary = (buffer, originalname) =>
   new Promise((resolve, reject) => {
@@ -78,6 +79,48 @@ router.post('/', protect, admin, (req, res) => {
           message: 'Tải ảnh lên Cloudinary thành công',
           imageUrl: result.secure_url,
           filename: result.public_id,
+        });
+      })
+      .catch((uploadError) => {
+        res.status(500).json({
+          message: 'Lỗi tải ảnh lên Cloudinary',
+          error: uploadError.message,
+        });
+      });
+  });
+});
+
+// @desc    Upload multiple product images to Cloudinary
+// @route   POST /api/upload/multiple
+router.post('/multiple', protect, admin, (req, res) => {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return res.status(500).json({ message: 'Thiếu cấu hình Cloudinary trên server (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET).' });
+  }
+
+  uploadMultiple(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'Dung lượng ảnh vượt quá giới hạn cho phép (Tối đa 5MB)!' });
+      }
+      return res.status(400).json({ message: `Lỗi tải lên: ${err.message}` });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'Vui lòng chọn ít nhất một file ảnh để tải lên!' });
+    }
+
+    const uploadPromises = req.files.map(file => 
+      uploadBufferToCloudinary(file.buffer, file.originalname)
+    );
+
+    Promise.all(uploadPromises)
+      .then((results) => {
+        const imageUrls = results.map(r => r.secure_url);
+        res.status(200).json({
+          message: 'Tải các ảnh lên Cloudinary thành công',
+          imageUrls: imageUrls
         });
       })
       .catch((uploadError) => {
