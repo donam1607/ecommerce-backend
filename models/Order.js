@@ -14,7 +14,7 @@ module.exports = (sequelize) => {
     qrData: { type: DataTypes.TEXT, allowNull: true },
     couponCode: { type: DataTypes.STRING, allowNull: true },
     discountAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
-
+    shippingStatus: { type: DataTypes.ENUM('processing', 'shipping', 'delivered', 'cancelled'), defaultValue: 'processing' }
   }, {
     tableName: 'orders',
     timestamps: true,

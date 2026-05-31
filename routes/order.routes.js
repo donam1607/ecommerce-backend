@@ -82,19 +82,23 @@ router.post('/', async (req, res) => {
 });
 
 
-// PUT /api/orders/:id/status - Cập nhật trạng thái thanh toán bất kỳ (Admin)
+// PUT /api/orders/:id/status - Cập nhật trạng thái đơn hàng (Admin)
 router.put('/:id/status', protect, admin, async (req, res) => {
   try {
-    const { paymentStatus } = req.body;
+    const { paymentStatus, shippingStatus } = req.body;
     const order = await Order.findByPk(req.params.id);
     if (!order) {
       return res.status(404).json({ message: 'Đơn hàng không tồn tại' });
     }
     
-    await order.update({ paymentStatus });
-    res.json({ message: 'Cập nhật trạng thái hóa đơn thành công!', order });
+    const updates = {};
+    if (paymentStatus) updates.paymentStatus = paymentStatus;
+    if (shippingStatus) updates.shippingStatus = shippingStatus;
+    
+    await order.update(updates);
+    res.json({ message: 'Cập nhật trạng thái đơn hàng thành công!', order });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái hóa đơn', error: error.message });
+    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái đơn hàng', error: error.message });
   }
 });
 
