@@ -31,12 +31,15 @@ const productRoutes = require('./routes/product.routes');
 const userRoutes = require('./routes/user.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const orderRoutes = require('./routes/order.routes');
+const couponRoutes = require('./routes/coupon.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/coupons', couponRoutes);
+
 
 // Root route - Beautiful Glassmorphic API Documentation
 app.get('/', (req, res) => {

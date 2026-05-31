@@ -27,5 +27,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
 const User = require('./models/User')(sequelize);
 const Product = require('./models/Product')(sequelize);
 const Order = require('./models/Order')(sequelize);
+const Coupon = require('./models/Coupon')(sequelize);
 
-module.exports = { sequelize, User, Product, Order };
+module.exports = { sequelize, User, Product, Order, Coupon };
+

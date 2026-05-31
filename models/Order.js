@@ -12,6 +12,9 @@ module.exports = (sequelize) => {
     paymentMethod: { type: DataTypes.ENUM('bank', 'store'), allowNull: false },
     orderItems: { type: DataTypes.JSON, allowNull: false },
     qrData: { type: DataTypes.TEXT, allowNull: true },
+    couponCode: { type: DataTypes.STRING, allowNull: true },
+    discountAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+
   }, {
     tableName: 'orders',
     timestamps: true,

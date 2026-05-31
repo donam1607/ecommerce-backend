@@ -31,7 +31,17 @@ router.get('/my-orders', protect, async (req, res) => {
 // POST /api/orders - Tạo đơn hàng mới (User hoặc Guest)
 router.post('/', async (req, res) => {
   try {
-    const { customerName, customerEmail, customerPhone, customerAddress, paymentMethod, totalAmount, orderItems } = req.body;
+    const { 
+      customerName, 
+      customerEmail, 
+      customerPhone, 
+      customerAddress, 
+      paymentMethod, 
+      totalAmount, 
+      orderItems,
+      couponCode,
+      discountAmount
+    } = req.body;
     
     // Tạo đơn hàng mới
     const order = await Order.create({
@@ -42,7 +52,9 @@ router.post('/', async (req, res) => {
       paymentMethod,
       paymentStatus: paymentMethod === 'cash' ? 'unpaid' : 'pending',
       totalAmount,
-      orderItems
+      orderItems,
+      couponCode: couponCode || null,
+      discountAmount: discountAmount || 0
     });
 
     // Cập nhật số lượng tồn kho của sản phẩm
@@ -54,11 +66,21 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Tăng lượt sử dụng của Coupon nếu có
+    if (couponCode) {
+      const { Coupon } = require('../db');
+      const coupon = await Coupon.findOne({ where: { code: couponCode.toUpperCase().trim() } });
+      if (coupon) {
+        await coupon.increment('usedCount');
+      }
+    }
+
     res.status(201).json(order);
   } catch (error) {
     res.status(500).json({ message: 'Không thể tạo đơn hàng', error: error.message });
   }
 });
+
 
 // PUT /api/orders/:id/status - Cập nhật trạng thái thanh toán bất kỳ (Admin)
 router.put('/:id/status', protect, admin, async (req, res) => {
