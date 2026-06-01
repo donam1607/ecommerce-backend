@@ -255,6 +255,9 @@ router.delete('/:id', protect, admin, async (req, res) => {
     res.json({ message: 'Đã xóa hóa đơn thành công' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xóa đơn hàng', error: error.message });
+  }
+});
+
 // PUT /api/orders/:id/cancel-client - Khách hàng tự hủy đơn hàng (Chỉ khi trạng thái là pending)
 router.put('/:id/cancel-client', protect, async (req, res) => {
   try {
