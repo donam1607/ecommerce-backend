@@ -255,6 +255,75 @@ router.delete('/:id', protect, admin, async (req, res) => {
     res.json({ message: 'Đã xóa hóa đơn thành công' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xóa đơn hàng', error: error.message });
+// PUT /api/orders/:id/cancel-client - Khách hàng tự hủy đơn hàng (Chỉ khi trạng thái là pending)
+router.put('/:id/cancel-client', protect, async (req, res) => {
+  try {
+    const { cancelReason } = req.body;
+    const order = await Order.findByPk(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng trên hệ thống.' });
+    }
+    
+    // Đảm bảo bảo mật: Khách hàng chỉ được hủy đơn của chính mình
+    if (order.customerEmail !== req.user.email) {
+      return res.status(403).json({ message: 'Bạn không có quyền hủy đơn hàng của người khác.' });
+    }
+    
+    // Chỉ được hủy khi đơn hàng đang chờ duyệt
+    if (order.orderStatus !== 'pending') {
+      return res.status(400).json({ message: 'Đơn hàng đã được duyệt hoặc đang vận chuyển, không thể tự hủy. Vui lòng liên hệ shop để hỗ trợ!' });
+    }
+    
+    const updates = {
+      orderStatus: 'cancelled',
+      cancelReason: cancelReason || 'Khách hàng tự hủy trên giao diện website'
+    };
+    
+    // Chạy qua máy trạng thái kho để hoàn kho tự động nếu đơn đã thanh toán (paid)
+    await updateOrderAndManageInventory(order, updates, req.user);
+    
+    res.json({ message: 'Đã hủy đơn hàng thành công!', order });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi hủy đơn hàng', error: error.message });
+  }
+});
+
+// PUT /api/orders/:id/return-client - Khách hàng gửi yêu cầu đổi trả / bảo hành (Chỉ khi trạng thái là delivered)
+router.put('/:id/return-client', protect, async (req, res) => {
+  try {
+    const { reason, description } = req.body;
+    const order = await Order.findByPk(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng.' });
+    }
+    
+    if (order.customerEmail !== req.user.email) {
+      return res.status(403).json({ message: 'Bạn không có quyền thực hiện trên đơn hàng của người khác.' });
+    }
+    
+    if (order.orderStatus !== 'delivered') {
+      return res.status(400).json({ message: 'Chỉ đơn hàng đã giao thành công mới có thể gửi yêu cầu đổi trả / bảo hành.' });
+    }
+    
+    const returnRequestData = {
+      reason,
+      description,
+      status: 'pending',
+      createdAt: new Date()
+    };
+    
+    const updates = {
+      orderStatus: 'returned', // Đổi trạng thái sang returned
+      returnRequest: returnRequestData
+    };
+    
+    await updateOrderAndManageInventory(order, updates, req.user);
+    
+    res.json({ message: 'Đã gửi yêu cầu đổi trả/bảo hành thành công!', order });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi gửi yêu cầu đổi trả', error: error.message });
   }
 });
 

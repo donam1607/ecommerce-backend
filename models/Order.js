@@ -21,7 +21,9 @@ module.exports = (sequelize) => {
     trackingNumber: { type: DataTypes.STRING, allowNull: true }, // Mã vận đơn
     shippingFee: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
     approvedBy: { type: DataTypes.STRING, allowNull: true }, // Tên nhân viên/Admin duyệt
-    serialNumbers: { type: DataTypes.JSONB, defaultValue: {} } // Map productId -> Serial Number
+    serialNumbers: { type: DataTypes.JSONB, defaultValue: {} }, // Map productId -> Serial Number
+    cancelReason: { type: DataTypes.TEXT, allowNull: true }, // Lý do hủy đơn
+    returnRequest: { type: DataTypes.JSONB, allowNull: true } // Yêu cầu đổi trả/bảo hành từ khách hàng
   }, {
     tableName: 'orders',
     timestamps: true,
