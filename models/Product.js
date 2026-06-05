@@ -12,7 +12,9 @@ module.exports = (sequelize) => {
     rating: { type: DataTypes.FLOAT, defaultValue: 0 },
     reviews: { type: DataTypes.INTEGER, defaultValue: 0 },
     countInStock: { type: DataTypes.INTEGER, defaultValue: 10 },
-    badge: { type: DataTypes.STRING, allowNull: true }
+    badge: { type: DataTypes.STRING, allowNull: true },
+    isHot: { type: DataTypes.BOOLEAN, defaultValue: false },
+    discount: { type: DataTypes.INTEGER, defaultValue: 0 }
   }, {
     timestamps: true
   });

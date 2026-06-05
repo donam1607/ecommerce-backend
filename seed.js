@@ -22,7 +22,9 @@ const productsData = [
     badge: "Best Seller",
     images: ["/images/products/macbook-1.jpg", "/images/products/macbook-2.jpg", "/images/products/macbook-3.jpg"],
     description: "Apple M3 chip, 18GB RAM, 512GB SSD",
-    specs: ["Apple M3 Pro chip", "18GB Unified Memory", "512GB SSD", "16.2\" Liquid Retina XDR"]
+    specs: ["Apple M3 Pro chip", "18GB Unified Memory", "512GB SSD", "16.2\" Liquid Retina XDR"],
+    isHot: true,
+    discount: 0
   },
   {
     name: "Dell XPS 15 OLED",
@@ -33,7 +35,9 @@ const productsData = [
     badge: "New",
     images: ["/images/products/dell-1.jpg", "/images/products/dell-2.jpg"],
     description: "Intel i9, 32GB RAM, 1TB SSD, OLED 4K",
-    specs: ["Intel Core i9-13900H", "32GB DDR5 RAM", "1TB NVMe SSD"]
+    specs: ["Intel Core i9-13900H", "32GB DDR5 RAM", "1TB NVMe SSD"],
+    isHot: false,
+    discount: 10
   },
   {
     name: "Sony WH-1000XM5",
@@ -44,7 +48,9 @@ const productsData = [
     badge: "Top Rated",
     images: ["/images/products/sony-1.jpg", "/images/products/sony-2.jpg"],
     description: "Industry-leading noise cancellation",
-    specs: ["30h battery life", "8 microphones ANC", "LDAC Hi-Res Audio"]
+    specs: ["30h battery life", "8 microphones ANC", "LDAC Hi-Res Audio"],
+    isHot: true,
+    discount: 0
   },
   {
     name: "Samsung 4K Monitor 32\"",
@@ -55,7 +61,9 @@ const productsData = [
     badge: "Sale",
     images: ["/images/products/monitor-1.jpg"],
     description: "4K UHD, 144Hz, 1ms response time",
-    specs: ["3840x2160 4K UHD", "144Hz refresh rate", "AMD FreeSync Premium"]
+    specs: ["3840x2160 4K UHD", "144Hz refresh rate", "AMD FreeSync Premium"],
+    isHot: false,
+    discount: 20
   },
   {
     name: "iPhone 15 Pro Max",
@@ -66,7 +74,9 @@ const productsData = [
     badge: "Hot",
     images: ["/images/products/iphone-1.jpg", "/images/products/iphone-2.jpg"],
     description: "A17 Pro chip, Titanium design, 48MP",
-    specs: ["Apple A17 Pro chip", "6.7\" Super Retina XDR", "Titanium design"]
+    specs: ["Apple A17 Pro chip", "6.7\" Super Retina XDR", "Titanium design"],
+    isHot: true,
+    discount: 15
   },
   {
     name: "Mechanical Keyboard Pro",
@@ -77,7 +87,9 @@ const productsData = [
     badge: null,
     images: ["/images/products/keyboard-1.jpg"],
     description: "RGB backlit, Cherry MX switches",
-    specs: ["Cherry MX Red switches", "Per-key RGB lighting", "PBT keycaps"]
+    specs: ["Cherry MX Red switches", "Per-key RGB lighting", "PBT keycaps"],
+    isHot: false,
+    discount: 0
   }
 ];
 
