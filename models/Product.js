@@ -14,7 +14,8 @@ module.exports = (sequelize) => {
     countInStock: { type: DataTypes.INTEGER, defaultValue: 10 },
     badge: { type: DataTypes.STRING, allowNull: true },
     isHot: { type: DataTypes.BOOLEAN, defaultValue: false },
-    discount: { type: DataTypes.INTEGER, defaultValue: 0 }
+    discount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    discountedPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true }
   }, {
     timestamps: true
   });

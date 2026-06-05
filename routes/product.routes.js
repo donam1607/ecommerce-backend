@@ -35,7 +35,7 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/products
 router.post('/', protect, admin, async (req, res) => {
   try {
-    const { name, category, price, images, description, specs, countInStock, badge, isHot, discount } = req.body;
+    const { name, category, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
 
     const imagesArr = Array.isArray(images)
       ? images
@@ -56,6 +56,7 @@ router.post('/', protect, admin, async (req, res) => {
       badge: badge || null,
       isHot: isHot === true || isHot === 'true',
       discount: parseInt(discount) || 0,
+      discountedPrice: discountedPrice !== undefined && discountedPrice !== "" ? parseFloat(discountedPrice) : null,
       rating: 0,
       reviews: 0
     });
@@ -73,7 +74,7 @@ router.put('/:id', protect, admin, async (req, res) => {
     const product = await Product.findByPk(req.params.id);
 
     if (product) {
-      const { name, category, price, images, description, specs, countInStock, badge, isHot, discount } = req.body;
+      const { name, category, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
 
       const imagesArr = Array.isArray(images)
         ? images
@@ -93,6 +94,7 @@ router.put('/:id', protect, admin, async (req, res) => {
       product.badge = badge !== undefined ? badge : product.badge;
       product.isHot = isHot !== undefined ? (isHot === true || isHot === 'true') : product.isHot;
       product.discount = discount !== undefined ? parseInt(discount) || 0 : product.discount;
+      product.discountedPrice = discountedPrice !== undefined ? (discountedPrice !== "" ? parseFloat(discountedPrice) : null) : product.discountedPrice;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
