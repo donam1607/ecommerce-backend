@@ -90,19 +90,28 @@ async function executeSearchProducts(args) {
   try {
     const products = await Product.findAll({
       where,
-      limit: 5,
+      limit: 6,
       order: [['rating', 'DESC'], ['reviews', 'DESC']]
     });
     
-    return products.map(p => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      price: Math.round(p.price),
-      badge: p.badge || 'New',
-      countInStock: p.countInStock,
-      image: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '/images/placeholder.jpg'
-    }));
+    return products.map(p => {
+      // Ưu tiên giá sau giảm nếu có, nếu không dùng giá thường
+      const finalPrice = p.discountedPrice && Number(p.discountedPrice) > 0
+        ? Math.round(Number(p.discountedPrice))
+        : Math.round(p.price);
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: finalPrice,
+        originalPrice: Math.round(p.price),
+        discountPercent: p.discountPercent || 0,
+        badge: p.badge || 'New',
+        rating: p.rating || 0,
+        countInStock: p.countInStock,
+        image: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '/images/placeholder.jpg'
+      };
+    });
   } catch (error) {
     console.error('Error searching products:', error);
     return [];
@@ -437,8 +446,12 @@ Tiếp tục duy trì và vận hành mượt mà các chức năng sẵn có b�
 - Trình bày thông tin rõ ràng, khoa học, sử dụng các dấu gạch đầu dòng, định dạng in đậm để khách hàng dễ đọc, dễ tiếp thu thông tin kỹ thuật phức tạp.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-lite',
       systemInstruction: systemInstruction,
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.7,
+      },
       tools: [{
         functionDeclarations: [
           {
@@ -525,7 +538,7 @@ Tiếp tục duy trì và vận hành mượt mà các chức năng sẵn có b�
       
       // Đưa kết quả của hàm vào lịch sử để gửi tiếp lên Gemini
       contents.push({
-        role: 'function',
+        role: 'tool',
         parts: [{
           functionResponse: {
             name: name,
@@ -550,15 +563,23 @@ Tiếp tục duy trì và vận hành mượt mà các chức năng sẵn có b�
         const foundProducts = await Product.findAll({
           where: { id: { [Op.in]: cardIds } }
         });
-        productsList = foundProducts.map(p => ({
-          id: p.id,
-          name: p.name,
-          category: p.category,
-          price: Math.round(p.price),
-          badge: p.badge || 'New',
-          countInStock: p.countInStock,
-          image: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '/images/placeholder.jpg'
-        }));
+        productsList = foundProducts.map(p => {
+          const finalPrice = p.discountedPrice && Number(p.discountedPrice) > 0
+            ? Math.round(Number(p.discountedPrice))
+            : Math.round(p.price);
+          return {
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: finalPrice,
+            originalPrice: Math.round(p.price),
+            discountPercent: p.discountPercent || 0,
+            badge: p.badge || 'New',
+            rating: p.rating || 0,
+            countInStock: p.countInStock,
+            image: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '/images/placeholder.jpg'
+          };
+        });
       }
     }
     
