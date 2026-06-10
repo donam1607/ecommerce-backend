@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User } = require('../db');
 
+const GOOGLE_CLIENT_ID_FALLBACK = '551039181496-e9ujahd2ucma6njdqfntnhb3pa2qg71s.apps.googleusercontent.com';
+
 const signUserToken = (user) => jwt.sign(
   { id: user.id, email: user.email, role: user.role },
   process.env.JWT_SECRET,
@@ -73,11 +75,7 @@ router.post('/login', async (req, res) => {
 // @route   POST /api/auth/google
 router.post('/google', async (req, res) => {
   const { credential } = req.body;
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
-
-  if (!googleClientId) {
-    return res.status(500).json({ message: 'Máy chủ chưa cấu hình GOOGLE_CLIENT_ID.' });
-  }
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
 
   if (!credential) {
     return res.status(400).json({ message: 'Thiếu mã xác thực Google.' });
