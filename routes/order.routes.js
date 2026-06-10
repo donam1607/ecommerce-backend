@@ -163,7 +163,12 @@ router.put('/:id', protect, admin, async (req, res) => {
     // Nếu đơn hàng đang giao (shipping), đã giao (delivered), đã hủy (cancelled) hoặc đổi trả (returned)
     // -> Khóa không cho phép sửa đổi thông tin khách hàng, số điện thoại, địa chỉ nhận hàng.
     const isLocked = ['shipping', 'delivered', 'cancelled', 'returned'].includes(order.orderStatus);
-    if (isLocked && (customerName || customerPhone || customerAddress)) {
+    const isChangingLockedCustomerInfo =
+      (customerName !== undefined && customerName !== order.customerName) ||
+      (customerPhone !== undefined && customerPhone !== order.customerPhone) ||
+      (customerAddress !== undefined && customerAddress !== order.customerAddress);
+
+    if (isLocked && isChangingLockedCustomerInfo) {
       return res.status(400).json({ 
         message: 'Đơn hàng đang giao, đã giao, đã hủy hoặc đổi trả sẽ khóa thông tin khách hàng và vận chuyển để bảo vệ dữ liệu!' 
       });
@@ -171,9 +176,9 @@ router.put('/:id', protect, admin, async (req, res) => {
 
     // Thu thập các trường thay đổi
     const updates = {};
-    if (customerName !== undefined) updates.customerName = customerName;
-    if (customerPhone !== undefined) updates.customerPhone = customerPhone;
-    if (customerAddress !== undefined) updates.customerAddress = customerAddress;
+    if (!isLocked && customerName !== undefined) updates.customerName = customerName;
+    if (!isLocked && customerPhone !== undefined) updates.customerPhone = customerPhone;
+    if (!isLocked && customerAddress !== undefined) updates.customerAddress = customerAddress;
     if (paymentStatus !== undefined) updates.paymentStatus = paymentStatus;
     if (orderStatus !== undefined) updates.orderStatus = orderStatus;
     if (shippingUnit !== undefined) updates.shippingUnit = shippingUnit;
