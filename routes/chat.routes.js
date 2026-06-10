@@ -63,6 +63,65 @@ function mapProductForChat(p) {
   };
 }
 
+function normalizeVi(text = '') {
+  return String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+}
+
+function extractProductSearchFilters(message = {}) {
+  const raw = String(message || '');
+  const msg = normalizeVi(raw);
+  const filters = {};
+
+  if (msg.includes('laptop') || msg.includes('may tinh xach tay')) filters.category = 'Laptop';
+  else if (msg.includes('man hinh') || msg.includes('monitor')) filters.category = 'Monitor';
+  else if (msg.includes('ban phim') || msg.includes('keyboard') || msg.includes('phim co')) filters.category = 'Keyboard';
+  else if (msg.includes('tai nghe') || msg.includes('headphone')) filters.category = 'Headphones';
+  else if (msg.includes('dien thoai') || msg.includes('smartphone') || msg.includes('iphone')) filters.category = 'Smartphone';
+  else if (msg.includes('chuot') || msg.includes('sac') || msg.includes('pin') || msg.includes('phu kien')) filters.category = 'Accessories';
+
+  const priceMatch = msg.match(/(?:duoi|toi da|tam|khoang|<=|nho hon)?\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|m)\b/);
+  if (priceMatch) {
+    filters.maxPrice = Math.round(Number(priceMatch[1].replace(',', '.')) * 1000000);
+  }
+
+  if (msg.includes('gaming')) filters.subCategory = filters.category === 'Laptop' ? 'Laptop gaming' : 'gaming';
+  if (msg.includes('van phong') || msg.includes('office')) filters.subCategory = filters.category === 'Laptop' ? 'Laptop văn phòng' : 'văn phòng';
+  if (msg.includes('do hoa') || msg.includes('design')) filters.subCategory = filters.category === 'Laptop' ? 'Laptop đồ họa' : 'đồ họa';
+
+  if (msg.includes('like new') || msg.includes('99%') || msg.includes('luot')) filters.condition = 'Like New';
+  else if (msg.includes('hang moi') || msg.includes('new') || msg.includes('nguyen seal')) filters.condition = 'New';
+  else if (msg.includes('hang cu') || msg.includes('old') || msg.includes('da qua su dung')) filters.condition = 'Old';
+
+  if (msg.includes('giam gia') || msg.includes('uu dai') || msg.includes('khuyen mai') || msg.includes('xa kho') || msg.includes('sale')) {
+    filters.onlyPromotions = true;
+  }
+
+  const hasIntent = /(mua|tim|tu van|goi y|can|chon|co.*khong)/.test(msg);
+  const hasFilter = Boolean(filters.category || filters.maxPrice || filters.subCategory || filters.condition || filters.onlyPromotions);
+
+  return hasIntent && hasFilter ? filters : null;
+}
+
+function buildProductSearchAnswer(filters, products) {
+  const parts = [];
+  if (filters.category) parts.push(filters.category.toLowerCase());
+  if (filters.subCategory) parts.push(filters.subCategory.toLowerCase());
+  if (filters.maxPrice) parts.push(`dưới ${Math.round(filters.maxPrice / 1000000)} triệu`);
+  if (filters.condition) parts.push(`tình trạng ${filters.condition}`);
+  if (filters.onlyPromotions) parts.push('đang có ưu đãi');
+
+  if (products.length === 0) {
+    return `Dạ, em đã lọc theo nhu cầu ${parts.join(', ') || 'của anh/chị'} nhưng hiện chưa thấy sản phẩm phù hợp trong kho. Anh/chị có thể tăng ngân sách một chút hoặc đổi sang hàng Like New/Old để em tìm sát hơn ạ.`;
+  }
+
+  const cards = products.map((product) => `[ProductCard: ${product.id}]`).join(' ');
+  return `Dạ, em đã lọc đúng theo nhu cầu **${parts.join(', ') || 'mua sắm'}** và chỉ lấy các sản phẩm có giá phù hợp trong kho hiện tại:\n\n${cards}\n\nAnh/chị có thể bấm xem chi tiết từng mẫu bên dưới. Nếu muốn, anh/chị nhắn thêm nhu cầu như học tập, gaming, đồ họa hay văn phòng để em lọc sâu hơn ạ.`;
+}
+
 async function executeSearchProducts(args) {
   const {
     category,
@@ -120,18 +179,6 @@ async function executeSearchProducts(args) {
     }
   }
   
-  // Lọc theo khoảng giá
-  const priceFilters = {};
-  if (minPrice && Number(minPrice) > 0) {
-    priceFilters[Op.gte] = Number(minPrice);
-  }
-  if (maxPrice && Number(maxPrice) > 0) {
-    priceFilters[Op.lte] = Number(maxPrice);
-  }
-  if (Object.keys(priceFilters).length > 0) {
-    where.price = priceFilters;
-  }
-
   if (inStockOnly) {
     where.countInStock = { [Op.gt]: 0 };
   }
@@ -169,13 +216,26 @@ async function executeSearchProducts(args) {
       relevance: [['rating', 'DESC'], ['reviews', 'DESC']]
     };
 
-    const products = await Product.findAll({
+    const rawProducts = await Product.findAll({
       where,
-      limit: Math.min(Math.max(Number(limit) || 6, 1), 10),
+      limit: 80,
       order: orderMap[sortBy] || orderMap.relevance
     });
     
-    return products.map(mapProductForChat);
+    const min = Number(minPrice) || 0;
+    const max = Number(maxPrice) || 0;
+    const products = rawProducts
+      .map(mapProductForChat)
+      .filter((product) => {
+        if (min > 0 && product.price < min) return false;
+        if (max > 0 && product.price > max) return false;
+        return true;
+      });
+
+    if (sortBy === 'price_asc') products.sort((a, b) => a.price - b.price);
+    if (sortBy === 'price_desc') products.sort((a, b) => b.price - a.price);
+
+    return products.slice(0, Math.min(Math.max(Number(limit) || 6, 1), 10));
   } catch (error) {
     console.error('Error searching products:', error);
     return [];
@@ -502,6 +562,25 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Vui lòng cung cấp tin nhắn hội thoại.' });
   }
   
+  const directProductFilters = extractProductSearchFilters(message);
+  if (directProductFilters) {
+    try {
+      const products = await executeSearchProducts({
+        ...directProductFilters,
+        inStockOnly: true,
+        sortBy: directProductFilters.maxPrice ? 'price_asc' : 'relevance',
+        limit: 5
+      });
+
+      return res.json({
+        text: buildProductSearchAnswer(directProductFilters, products),
+        products
+      });
+    } catch (err) {
+      console.error('Direct product search error:', err);
+    }
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   
   // 1. Kiểm tra nếu chưa cấu hình GEMINI_API_KEY -> kích hoạt Mock AI Fallback ngay lập tức
