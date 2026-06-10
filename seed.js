@@ -16,6 +16,8 @@ const productsData = [
   {
     name: "MacBook Pro M3 16\"",
     category: "Laptop",
+    brand: "Apple",
+    subCategory: "Laptop văn phòng",
     price: 2499.00,
     rating: 4.9,
     reviews: 342,
@@ -29,6 +31,8 @@ const productsData = [
   {
     name: "Dell XPS 15 OLED",
     category: "Laptop",
+    brand: "Dell",
+    subCategory: "Laptop đồ họa",
     price: 1899.00,
     rating: 4.8,
     reviews: 215,
@@ -42,6 +46,8 @@ const productsData = [
   {
     name: "Sony WH-1000XM5",
     category: "Headphones",
+    brand: "Sony",
+    subCategory: "Tai nghe chống ồn",
     price: 349.99,
     rating: 4.9,
     reviews: 1024,
@@ -55,6 +61,8 @@ const productsData = [
   {
     name: "Samsung 4K Monitor 32\"",
     category: "Monitor",
+    brand: "Samsung",
+    subCategory: "Màn hình gaming",
     price: 699.00,
     rating: 4.7,
     reviews: 189,
@@ -68,6 +76,8 @@ const productsData = [
   {
     name: "iPhone 15 Pro Max",
     category: "Smartphone",
+    brand: "Apple",
+    subCategory: "Điện thoại flagship",
     price: 1199.00,
     rating: 4.8,
     reviews: 2103,
@@ -81,6 +91,8 @@ const productsData = [
   {
     name: "Mechanical Keyboard Pro",
     category: "Keyboard",
+    brand: "Aula",
+    subCategory: "Bàn phím cơ",
     price: 149.00,
     rating: 4.6,
     reviews: 567,

@@ -35,7 +35,7 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/products
 router.post('/', protect, admin, async (req, res) => {
   try {
-    const { name, category, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
+    const { name, category, brand, subCategory, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
 
     const imagesArr = Array.isArray(images)
       ? images
@@ -48,6 +48,8 @@ router.post('/', protect, admin, async (req, res) => {
     const product = await Product.create({
       name,
       category,
+      brand: brand ? String(brand).trim() : null,
+      subCategory: subCategory ? String(subCategory).trim() : null,
       price: parseFloat(price) || 0,
       images: imagesArr,
       description,
@@ -74,7 +76,7 @@ router.put('/:id', protect, admin, async (req, res) => {
     const product = await Product.findByPk(req.params.id);
 
     if (product) {
-      const { name, category, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
+      const { name, category, brand, subCategory, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
 
       const imagesArr = Array.isArray(images)
         ? images
@@ -86,6 +88,8 @@ router.put('/:id', protect, admin, async (req, res) => {
 
       product.name = name !== undefined ? name : product.name;
       product.category = category !== undefined ? category : product.category;
+      product.brand = brand !== undefined ? (brand ? String(brand).trim() : null) : product.brand;
+      product.subCategory = subCategory !== undefined ? (subCategory ? String(subCategory).trim() : null) : product.subCategory;
       product.price = price !== undefined ? parseFloat(price) : product.price;
       product.images = imagesArr;
       product.description = description !== undefined ? description : product.description;

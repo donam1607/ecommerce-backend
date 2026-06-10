@@ -47,7 +47,7 @@ async function executeSearchProducts(args) {
   if (category && category.toLowerCase() !== 'all') {
     where.category = { [Op.iLike]: `%${category}%` };
   }
-  
+
   // Lọc theo tình trạng (badge)
   if (condition && condition.toLowerCase() !== 'all') {
     const cond = condition.toLowerCase().trim();
