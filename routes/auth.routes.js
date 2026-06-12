@@ -20,7 +20,6 @@ const buildAuthResponse = (user, token) => ({
   phone: user.phone || "",
   address: user.address || "",
   city: user.city || "",
-  zip: user.zip || "",
   token
 });
 

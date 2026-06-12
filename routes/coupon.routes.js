@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Coupon } = require('../db');
-const { protect, admin } = require('../auth.middleware');
+const { protect, admin, permit } = require('../auth.middleware');
 const { Op } = require('sequelize');
 
 // Helper to determine product condition from its badge (matches frontend Home.jsx logic)
@@ -42,7 +42,7 @@ router.get('/', protect, admin, async (req, res) => {
 });
 
 // POST /api/coupons - Tạo mã giảm giá mới (Admin)
-router.post('/', protect, admin, async (req, res) => {
+router.post('/', protect, admin, permit('coupons.write'), async (req, res) => {
   try {
     const { 
       code, 
@@ -88,7 +88,7 @@ router.post('/', protect, admin, async (req, res) => {
 });
 
 // PUT /api/coupons/:id - Chỉnh sửa mã giảm giá (Admin)
-router.put('/:id', protect, admin, async (req, res) => {
+router.put('/:id', protect, admin, permit('coupons.write'), async (req, res) => {
   try {
     const { 
       code, 
@@ -139,7 +139,7 @@ router.put('/:id', protect, admin, async (req, res) => {
 });
 
 // DELETE /api/coupons/:id - Xóa mã giảm giá (Admin)
-router.delete('/:id', protect, admin, async (req, res) => {
+router.delete('/:id', protect, admin, permit('coupons.write'), async (req, res) => {
   try {
     const coupon = await Coupon.findByPk(req.params.id);
     if (!coupon) {

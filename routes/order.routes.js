@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Order, Product } = require('../db');
-const { protect, admin } = require('../auth.middleware');
+const { protect, admin, permit } = require('../auth.middleware');
 
 // ---------------------------------------------------------
 // HELPER: MÁY TRẠNG THÁI KHO HÀNG TỰ ĐỘNG (STOCK TRANSITIONS)
@@ -140,7 +140,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/orders/:id - Cập nhật chi tiết đơn hàng toàn diện (Admin / Sales)
-router.put('/:id', protect, admin, async (req, res) => {
+router.put('/:id', protect, admin, permit('orders.write'), async (req, res) => {
   try {
     const {
       customerName,
@@ -196,7 +196,7 @@ router.put('/:id', protect, admin, async (req, res) => {
 });
 
 // PUT /api/orders/:id/status - Cập nhật nhanh trạng thái đơn hàng (Admin)
-router.put('/:id/status', protect, admin, async (req, res) => {
+router.put('/:id/status', protect, admin, permit('orders.write'), async (req, res) => {
   try {
     const { paymentStatus, orderStatus } = req.body;
     const order = await Order.findByPk(req.params.id);
@@ -218,7 +218,7 @@ router.put('/:id/status', protect, admin, async (req, res) => {
 });
 
 // PUT /api/orders/:id/paid - Xác nhận đã thanh toán thành công (Admin)
-router.put('/:id/paid', protect, admin, async (req, res) => {
+router.put('/:id/paid', protect, admin, permit('orders.write'), async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id);
     if (!order) {
@@ -237,7 +237,7 @@ router.put('/:id/paid', protect, admin, async (req, res) => {
 });
 
 // DELETE /api/orders/:id - Xóa đơn hàng (Admin)
-router.delete('/:id', protect, admin, async (req, res) => {
+router.delete('/:id', protect, admin, permit('orders.write'), async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id);
     if (!order) {

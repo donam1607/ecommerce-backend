@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Product } = require('../db');
-const { protect, admin } = require('../auth.middleware');
+const { protect, admin, permit } = require('../auth.middleware');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -33,7 +33,7 @@ router.get('/:id', async (req, res) => {
 
 // @desc    Create a product
 // @route   POST /api/products
-router.post('/', protect, admin, async (req, res) => {
+router.post('/', protect, admin, permit('products.write'), async (req, res) => {
   try {
     const { name, category, brand, subCategory, price, images, description, specs, countInStock, badge, isHot, discount, discountedPrice } = req.body;
 
@@ -71,7 +71,7 @@ router.post('/', protect, admin, async (req, res) => {
 
 // @desc    Update a product
 // @route   PUT /api/products/:id
-router.put('/:id', protect, admin, async (req, res) => {
+router.put('/:id', protect, admin, permit('products.write'), async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 
@@ -112,7 +112,7 @@ router.put('/:id', protect, admin, async (req, res) => {
 
 // @desc    Delete a product
 // @route   DELETE /api/products/:id
-router.delete('/:id', protect, admin, async (req, res) => {
+router.delete('/:id', protect, admin, permit('products.write'), async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 

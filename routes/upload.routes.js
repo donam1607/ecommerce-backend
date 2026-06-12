@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const { v2: cloudinary } = require('cloudinary');
-const { protect, admin } = require('../auth.middleware');
+const { protect, admin, permit } = require('../auth.middleware');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -52,7 +52,7 @@ const uploadBufferToCloudinary = (buffer, originalname) =>
 
 // @desc    Upload product image to Cloudinary
 // @route   POST /api/upload
-router.post('/', protect, admin, (req, res) => {
+router.post('/', protect, admin, permit('products.write'), (req, res) => {
   if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
     return res.status(500).json({ message: 'Thiếu cấu hình Cloudinary trên server (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET).' });
   }
@@ -92,7 +92,7 @@ router.post('/', protect, admin, (req, res) => {
 
 // @desc    Upload multiple product images to Cloudinary
 // @route   POST /api/upload/multiple
-router.post('/multiple', protect, admin, (req, res) => {
+router.post('/multiple', protect, admin, permit('products.write'), (req, res) => {
   if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
     return res.status(500).json({ message: 'Thiếu cấu hình Cloudinary trên server (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET).' });
   }
