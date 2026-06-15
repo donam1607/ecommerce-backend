@@ -29,13 +29,41 @@ const getProductCondition = (badge) => {
   return "Other";
 };
 
+const getEndOfDay = (dateValue) => {
+  const date = new Date(dateValue);
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
+
+const getCouponRuntimeStatus = (coupon, now = new Date()) => {
+  if (!coupon.isActive) return 'paused';
+  if (coupon.startDate && new Date(coupon.startDate) > now) return 'scheduled';
+  if (coupon.endDate && getEndOfDay(coupon.endDate) < now) return 'expired';
+  if (
+    coupon.maxUses !== null &&
+    coupon.maxUses !== undefined &&
+    Number(coupon.usedCount || 0) >= Number(coupon.maxUses)
+  ) {
+    return 'used_up';
+  }
+  return 'active';
+};
+
+const serializeCoupon = (coupon) => {
+  const plain = coupon?.toJSON ? coupon.toJSON() : coupon;
+  return {
+    ...plain,
+    runtimeStatus: getCouponRuntimeStatus(plain)
+  };
+};
+
 // GET /api/coupons - Lấy danh sách tất cả mã giảm giá (Admin)
 router.get('/', protect, admin, async (req, res) => {
   try {
     const coupons = await Coupon.findAll({
       order: [['createdAt', 'DESC']]
     });
-    res.json(coupons);
+    res.json(coupons.map(serializeCoupon));
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tải danh sách mã giảm giá', error: error.message });
   }
@@ -81,7 +109,7 @@ router.post('/', protect, admin, permit('coupons.write'), async (req, res) => {
       usedCount: 0
     });
 
-    res.status(201).json(coupon);
+    res.status(201).json(serializeCoupon(coupon));
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo mã giảm giá', error: error.message });
   }
@@ -132,7 +160,7 @@ router.put('/:id', protect, admin, permit('coupons.write'), async (req, res) => 
       maxUses: maxUses !== undefined ? maxUses : coupon.maxUses
     });
 
-    res.json(coupon);
+    res.json(serializeCoupon(coupon));
   } catch (error) {
     res.status(500).json({ message: 'Lỗi cập nhật mã giảm giá', error: error.message });
   }
@@ -183,7 +211,7 @@ router.post('/validate', async (req, res) => {
     if (coupon.startDate && new Date(coupon.startDate) > now) {
       return res.status(400).json({ isValid: false, message: 'Mã giảm giá này chưa đến thời gian áp dụng!' });
     }
-    if (coupon.endDate && new Date(coupon.endDate) < now) {
+    if (coupon.endDate && getEndOfDay(coupon.endDate) < now) {
       return res.status(400).json({ isValid: false, message: 'Mã giảm giá này đã quá hạn sử dụng!' });
     }
 
