@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Product } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
+const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -63,6 +64,15 @@ router.post('/', protect, admin, permit('products.write'), async (req, res) => {
       reviews: 0
     });
 
+    await logActivity(req, {
+      action: 'create',
+      entityType: 'product',
+      entityId: product.id,
+      entityLabel: product.name,
+      description: `Tạo sản phẩm "${product.name}"`,
+      metadata: { category: product.category, brand: product.brand, price: product.price }
+    });
+
     res.status(201).json(product);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo sản phẩm', error: error.message });
@@ -86,6 +96,8 @@ router.put('/:id', protect, admin, permit('products.write'), async (req, res) =>
         ? specs
         : (typeof specs === 'string' ? specs.split('\n').map(s => s.trim()).filter(Boolean) : product.specs);
 
+      const previous = product.toJSON();
+
       product.name = name !== undefined ? name : product.name;
       product.category = category !== undefined ? category : product.category;
       product.brand = brand !== undefined ? (brand ? String(brand).trim() : null) : product.brand;
@@ -101,6 +113,29 @@ router.put('/:id', protect, admin, permit('products.write'), async (req, res) =>
       product.discountedPrice = discountedPrice !== undefined ? (discountedPrice !== "" ? parseFloat(discountedPrice) : null) : product.discountedPrice;
 
       const updatedProduct = await product.save();
+      await logActivity(req, {
+        action: 'update',
+        entityType: 'product',
+        entityId: updatedProduct.id,
+        entityLabel: updatedProduct.name,
+        description: `Cập nhật sản phẩm "${updatedProduct.name}"`,
+        metadata: {
+          before: {
+            name: previous.name,
+            price: previous.price,
+            countInStock: previous.countInStock,
+            discount: previous.discount,
+            discountedPrice: previous.discountedPrice
+          },
+          after: {
+            name: updatedProduct.name,
+            price: updatedProduct.price,
+            countInStock: updatedProduct.countInStock,
+            discount: updatedProduct.discount,
+            discountedPrice: updatedProduct.discountedPrice
+          }
+        }
+      });
       res.json(updatedProduct);
     } else {
       res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
@@ -117,7 +152,16 @@ router.delete('/:id', protect, admin, permit('products.write'), async (req, res)
     const product = await Product.findByPk(req.params.id);
 
     if (product) {
+      const deletedProduct = product.toJSON();
       await product.destroy();
+      await logActivity(req, {
+        action: 'delete',
+        entityType: 'product',
+        entityId: deletedProduct.id,
+        entityLabel: deletedProduct.name,
+        description: `Deleted product "${deletedProduct.name}"`,
+        metadata: { category: deletedProduct.category, brand: deletedProduct.brand }
+      });
       res.json({ message: 'Đã xóa sản phẩm thành công' });
     } else {
       res.status(404).json({ message: 'Không tìm thấy sản phẩm' });

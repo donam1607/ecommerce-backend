@@ -3,6 +3,7 @@ const router = express.Router();
 const { User } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
 const { getRole } = require('../utils/rolePermissions');
+const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Get current user profile
 // @route   GET /api/users/profile
@@ -96,8 +97,17 @@ router.put('/:id/role', protect, admin, permit('users.write'), async (req, res) 
         return res.status(400).json({ message: 'Vai trò không hợp lệ' });
       }
 
+      const previousRole = user.role;
       user.role = role;
       const updatedUser = await user.save();
+      await logActivity(req, {
+        action: 'role_update',
+        entityType: 'user',
+        entityId: updatedUser.id,
+        entityLabel: updatedUser.email,
+        description: `Updated user role "${updatedUser.email}"`,
+        metadata: { before: { role: previousRole }, after: { role: updatedUser.role } }
+      });
       
       res.json({
         id: updatedUser.id,
@@ -124,7 +134,16 @@ router.delete('/:id', protect, admin, permit('users.write'), async (req, res) =>
         return res.status(400).json({ message: 'Bạn không thể tự xóa tài khoản của chính mình' });
       }
 
+      const deletedUser = user.toJSON();
       await user.destroy();
+      await logActivity(req, {
+        action: 'delete',
+        entityType: 'user',
+        entityId: deletedUser.id,
+        entityLabel: deletedUser.email,
+        description: `Deleted user "${deletedUser.email}"`,
+        metadata: { name: deletedUser.name, role: deletedUser.role }
+      });
       res.json({ message: 'Đã xóa người dùng thành công' });
     } else {
       res.status(404).json({ message: 'Không tìm thấy người dùng' });
@@ -157,6 +176,14 @@ router.post('/', protect, admin, permit('users.write'), async (req, res) => {
       phone: phone || null,
       address: address || null,
       city: city || null
+    });
+    await logActivity(req, {
+      action: 'create',
+      entityType: 'user',
+      entityId: user.id,
+      entityLabel: user.email,
+      description: `Created user "${user.email}"`,
+      metadata: { name: user.name, role: user.role }
     });
 
     res.status(201).json({
@@ -198,6 +225,7 @@ router.put('/:id', protect, admin, permit('users.write'), async (req, res) => {
       return res.status(400).json({ message: 'Bạn không thể tự hạ vai trò quản trị của chính mình để tránh mất quyền quản lý' });
     }
 
+    const previous = user.toJSON();
     user.name = name || user.name;
     user.role = getRole(role) ? role : user.role;
     user.phone = phone !== undefined ? phone : user.phone;
@@ -209,6 +237,17 @@ router.put('/:id', protect, admin, permit('users.write'), async (req, res) => {
     }
 
     const updatedUser = await user.save();
+    await logActivity(req, {
+      action: 'update',
+      entityType: 'user',
+      entityId: updatedUser.id,
+      entityLabel: updatedUser.email,
+      description: `Updated user "${updatedUser.email}"`,
+      metadata: {
+        before: { name: previous.name, email: previous.email, role: previous.role },
+        after: { name: updatedUser.name, email: updatedUser.email, role: updatedUser.role }
+      }
+    });
 
     res.json({
       id: updatedUser.id,

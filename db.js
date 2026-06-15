@@ -28,6 +28,7 @@ const User = require('./models/User')(sequelize);
 const Product = require('./models/Product')(sequelize);
 const Order = require('./models/Order')(sequelize);
 const Coupon = require('./models/Coupon')(sequelize);
+const ActivityLog = require('./models/ActivityLog')(sequelize);
 
-module.exports = { sequelize, User, Product, Order, Coupon };
+module.exports = { sequelize, User, Product, Order, Coupon, ActivityLog };
 

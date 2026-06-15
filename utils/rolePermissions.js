@@ -15,6 +15,7 @@ const PERMISSION_GROUPS = [
       { id: 'screen.coupons', label: 'Quản lý khuyến mãi' },
       { id: 'screen.users', label: 'Quản lý thành viên' },
       { id: 'screen.roles', label: 'Quản lý phân quyền' },
+      { id: 'screen.activity', label: 'Lịch sử hoạt động' },
     ],
   },
   {
@@ -27,6 +28,7 @@ const PERMISSION_GROUPS = [
       { id: 'coupons.write', label: 'Thêm/sửa/xóa khuyến mãi' },
       { id: 'users.write', label: 'Thêm/sửa/xóa thành viên' },
       { id: 'roles.write', label: 'Tạo/sửa quyền' },
+      { id: 'activity.read', label: 'Xem lịch sử hoạt động' },
     ],
   },
 ];
@@ -52,10 +54,12 @@ const DEFAULT_ROLES = [
       'screen.categories',
       'screen.orders',
       'screen.coupons',
+      'screen.activity',
       'products.write',
       'categories.write',
       'orders.write',
       'coupons.write',
+      'activity.read',
     ],
   },
   {
@@ -79,9 +83,18 @@ const normalizeRoleId = (value = '') => String(value).trim().toLowerCase().repla
 function mergeDefaults(roles) {
   const byId = new Map(roles.map((role) => [role.id, role]));
   DEFAULT_ROLES.forEach((role) => {
-    byId.set(role.id, { ...role, ...(byId.get(role.id) || {}), locked: role.locked });
+    const saved = byId.get(role.id) || {};
+    byId.set(role.id, {
+      ...role,
+      ...saved,
+      locked: role.locked,
+      permissions: Array.from(new Set([...(role.permissions || []), ...(saved.permissions || [])])),
+    });
   });
-  return Array.from(byId.values());
+  return Array.from(byId.values()).map((role) => ({
+    ...role,
+    permissions: (role.permissions || []).filter((permission) => ALL_PERMISSION_IDS.includes(permission)),
+  }));
 }
 
 function readRoles() {

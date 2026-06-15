@@ -71,7 +71,100 @@ function normalizeVi(text = '') {
     .replace(/đ/g, 'd');
 }
 
-function extractProductSearchFilters(message = {}) {
+const CATEGORY_ALIASES = [
+  { value: 'Laptop', terms: ['laptop', 'may tinh xach tay', 'notebook'] },
+  { value: 'Monitor', terms: ['man hinh', 'monitor', 'display'] },
+  { value: 'Keyboard', terms: ['ban phim', 'keyboard', 'phim co'] },
+  { value: 'Headphones', terms: ['tai nghe', 'headphone', 'headphones'] },
+  { value: 'Smartphone', terms: ['dien thoai', 'smartphone', 'iphone'] },
+  { value: 'Accessories', terms: ['chuot', 'sac', 'pin', 'phu kien', 'accessories'] }
+];
+
+const PURPOSE_SUBCATEGORY_ALIASES = [
+  { value: 'Laptop gaming', terms: ['gaming', 'choi game', 'game'] },
+  { value: 'Laptop văn phòng', terms: ['van phong', 'office', 'hoc tap', 'sinh vien', 'lam viec'] },
+  { value: 'Laptop đồ họa', terms: ['do hoa', 'design', 'thiet ke', 'render', 'premiere', 'photoshop', 'autocad', 'blender'] },
+  { value: 'Bàn phím cơ', terms: ['ban phim co', 'phim co', 'mechanical'] },
+  { value: 'Màn hình gaming', terms: ['man hinh gaming', '144hz', '165hz', '240hz'] }
+];
+
+function normalizeSearchText(text = '') {
+  return normalizeVi(text).replace(/Ä‘/g, 'd').replace(/Ã„â€˜/g, 'd');
+}
+
+function getCategoryFromMessage(msg) {
+  const found = CATEGORY_ALIASES.find((item) => item.terms.some((term) => msg.includes(term)));
+  return found?.value || null;
+}
+
+function getSubCategoryFromMessage(msg, category) {
+  const found = PURPOSE_SUBCATEGORY_ALIASES.find((item) => item.terms.some((term) => msg.includes(term)));
+  if (!found) return null;
+  if (found.value.startsWith('Laptop') && category && category !== 'Laptop') return found.value.replace(/^Laptop\s+/i, '');
+  return found.value;
+}
+
+function parseBudgetNumber(value, unit = '') {
+  const num = Number(String(value || '').replace(',', '.'));
+  if (!Number.isFinite(num)) return 0;
+  const normalizedUnit = normalizeSearchText(unit);
+  if (normalizedUnit.includes('tr') || normalizedUnit === 'm') return Math.round(num * 1000000);
+  if (normalizedUnit.includes('k') || normalizedUnit.includes('nghin')) return Math.round(num * 1000);
+  return Math.round(num);
+}
+
+function extractPriceRange(msg) {
+  const rangeMatch = msg.match(/(?:tu|trong khoang)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|m|k|nghin)?\s*(?:den|-|toi)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|m|k|nghin)?/);
+  if (rangeMatch) {
+    const fallbackUnit = rangeMatch[4] || rangeMatch[2] || 'tr';
+    return {
+      minPrice: parseBudgetNumber(rangeMatch[1], rangeMatch[2] || fallbackUnit),
+      maxPrice: parseBudgetNumber(rangeMatch[3], fallbackUnit)
+    };
+  }
+
+  const maxMatch = msg.match(/(?:duoi|toi da|nho hon|khong qua|<=|tam gia duoi|gia duoi)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|m|k|nghin)?/);
+  if (maxMatch) return { maxPrice: parseBudgetNumber(maxMatch[1], maxMatch[2] || 'tr') };
+
+  const aroundMatch = msg.match(/(?:tam|khoang|tam gia)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|m|k|nghin)?/);
+  if (aroundMatch) {
+    const price = parseBudgetNumber(aroundMatch[1], aroundMatch[2] || 'tr');
+    return { minPrice: Math.max(0, Math.round(price * 0.75)), maxPrice: Math.round(price * 1.15) };
+  }
+
+  const plainMatch = msg.match(/(\d+(?:[.,]\d+)?)\s*(tr|trieu|m)\b/);
+  if (plainMatch) return { maxPrice: parseBudgetNumber(plainMatch[1], plainMatch[2]) };
+
+  return {};
+}
+
+async function getCatalogSearchTerms() {
+  const products = await Product.findAll({
+    attributes: ['brand', 'subCategory'],
+    limit: 500
+  });
+  const brands = new Set();
+  const subCategories = new Set();
+
+  products.forEach((product) => {
+    if (product.brand) brands.add(product.brand);
+    if (product.subCategory) subCategories.add(product.subCategory);
+  });
+
+  return {
+    brands: Array.from(brands).sort((a, b) => b.length - a.length),
+    subCategories: Array.from(subCategories).sort((a, b) => b.length - a.length)
+  };
+}
+
+function findKnownTerm(msg, terms) {
+  return terms.find((term) => {
+    const normalizedTerm = normalizeSearchText(term);
+    return normalizedTerm && msg.includes(normalizedTerm);
+  }) || null;
+}
+
+function extractProductSearchFilters(message = {}, catalogTerms = null) {
   const raw = String(message || '');
   const msg = normalizeVi(raw).replace(/đ/g, 'd').replace(/Ä‘/g, 'd');
   const filters = {};
@@ -108,10 +201,48 @@ function extractProductSearchFilters(message = {}) {
   return hasIntent && hasFilter ? filters : null;
 }
 
+function extractAdvancedProductSearchFilters(message = {}, catalogTerms = null) {
+  const msg = normalizeSearchText(message);
+  const filters = {};
+
+  const category = getCategoryFromMessage(msg);
+  if (category) filters.category = category;
+
+  Object.assign(filters, extractPriceRange(msg));
+
+  const knownBrand = catalogTerms ? findKnownTerm(msg, catalogTerms.brands || []) : null;
+  const knownSubCategory = catalogTerms ? findKnownTerm(msg, catalogTerms.subCategories || []) : null;
+  if (knownBrand) filters.brand = knownBrand;
+  if (knownSubCategory) filters.subCategory = knownSubCategory;
+
+  if (!filters.subCategory) {
+    const inferredSubCategory = getSubCategoryFromMessage(msg, filters.category);
+    if (inferredSubCategory) filters.subCategory = inferredSubCategory;
+  }
+
+  if (msg.includes('like new') || msg.includes('99%') || msg.includes('luot')) filters.condition = 'Like New';
+  else if (msg.includes('hang moi') || msg.includes('new') || msg.includes('nguyen seal')) filters.condition = 'New';
+  else if (msg.includes('hang cu') || msg.includes('old') || msg.includes('da qua su dung')) filters.condition = 'Old';
+
+  if (msg.includes('giam gia') || msg.includes('uu dai') || msg.includes('khuyen mai') || msg.includes('xa kho') || msg.includes('sale')) {
+    filters.onlyPromotions = true;
+  }
+
+  if (msg.includes('re nhat') || msg.includes('gia re') || msg.includes('thap den cao')) filters.sortBy = 'price_asc';
+  if (msg.includes('cao cap') || msg.includes('dat nhat') || msg.includes('manh nhat')) filters.sortBy = 'price_desc';
+
+  const hasIntent = /(mua|tim|tu van|goi y|can|chon|co.*khong|shop co|ban co|laptop|monitor|man hinh|ban phim|tai nghe|dien thoai|chuot|phu kien)/.test(msg);
+  const hasFilter = Boolean(filters.category || filters.brand || filters.maxPrice || filters.minPrice || filters.subCategory || filters.condition || filters.onlyPromotions);
+
+  return hasIntent && hasFilter ? filters : null;
+}
+
 function buildProductSearchAnswer(filters, products) {
   const parts = [];
   if (filters.category) parts.push(filters.category.toLowerCase());
+  if (filters.brand) parts.push(`hãng ${filters.brand}`);
   if (filters.subCategory) parts.push(filters.subCategory.toLowerCase());
+  if (filters.minPrice) parts.push(`từ ${Math.round(filters.minPrice / 1000000)} triệu`);
   if (filters.maxPrice) parts.push(`dưới ${Math.round(filters.maxPrice / 1000000)} triệu`);
   if (filters.condition) parts.push(`tình trạng ${filters.condition}`);
   if (filters.onlyPromotions) parts.push('đang có ưu đãi');
@@ -185,6 +316,7 @@ async function executeSearchProducts(args) {
     sortBy = 'relevance',
     limit = 6
   } = args;
+  const effectiveSortBy = sortBy === 'relevance' && Number(maxPrice) > 0 ? 'price_asc' : sortBy;
   console.log('🤖 Tool searchProducts triggered:', args);
   
   const where = {};
@@ -206,7 +338,18 @@ async function executeSearchProducts(args) {
   if (condition && condition.toLowerCase() !== 'all') {
     const cond = condition.toLowerCase().trim();
     if (cond === 'new') {
-      where.badge = { [Op.iLike]: '%new%' };
+      where.badge = {
+        [Op.and]: [
+          {
+            [Op.or]: [
+              { [Op.iLike]: '%new%' },
+              { [Op.iLike]: '%moi%' },
+              { [Op.iLike]: '%mới%' }
+            ]
+          },
+          { [Op.notILike]: '%like%' }
+        ]
+      };
     } else if (cond === 'like new' || cond === 'likenew') {
       where.badge = {
         [Op.or]: [
@@ -268,7 +411,7 @@ async function executeSearchProducts(args) {
     const rawProducts = await Product.findAll({
       where,
       limit: 80,
-      order: orderMap[sortBy] || orderMap.relevance
+      order: orderMap[effectiveSortBy] || orderMap.relevance
     });
     
     const min = Number(minPrice) || 0;
@@ -281,8 +424,8 @@ async function executeSearchProducts(args) {
         return true;
       });
 
-    if (sortBy === 'price_asc') products.sort((a, b) => a.price - b.price);
-    if (sortBy === 'price_desc') products.sort((a, b) => b.price - a.price);
+    if (effectiveSortBy === 'price_asc') products.sort((a, b) => a.price - b.price);
+    if (effectiveSortBy === 'price_desc') products.sort((a, b) => b.price - a.price);
 
     return products.slice(0, Math.min(Math.max(Number(limit) || 6, 1), 10));
   } catch (error) {
@@ -423,7 +566,6 @@ async function executeListActiveCoupons(args = {}) {
       isActive: true,
       [Op.and]: [
         { [Op.or]: [{ startDate: null }, { startDate: { [Op.lte]: now } }] },
-        { [Op.or]: [{ endDate: null }, { endDate: { [Op.gte]: now } }] },
         { [Op.or]: [{ maxUses: null }, { usedCount: { [Op.lt]: Sequelize.col('maxUses') } }] }
       ]
     },
@@ -433,6 +575,11 @@ async function executeListActiveCoupons(args = {}) {
 
   return coupons
     .filter((coupon) => {
+      if (coupon.endDate) {
+        const endDate = new Date(coupon.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        if (endDate < now) return false;
+      }
       const cats = Array.isArray(coupon.applicableCategories) ? coupon.applicableCategories : [];
       const conds = Array.isArray(coupon.applicableConditions) ? coupon.applicableConditions : [];
       const catOk = !category || category.toLowerCase() === 'all' || cats.length === 0 || cats.some((cat) => cat.toLowerCase() === category.toLowerCase());
@@ -647,13 +794,20 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const directProductFilters = extractProductSearchFilters(message);
+  let catalogTerms = null;
+  try {
+    catalogTerms = await getCatalogSearchTerms();
+  } catch (err) {
+    console.error('Catalog terms load error:', err);
+  }
+
+  const directProductFilters = extractAdvancedProductSearchFilters(message, catalogTerms) || extractProductSearchFilters(message, catalogTerms);
   if (directProductFilters) {
     try {
       const products = await executeSearchProducts({
         ...directProductFilters,
         inStockOnly: true,
-        sortBy: directProductFilters.maxPrice ? 'price_asc' : 'relevance',
+        sortBy: directProductFilters.sortBy || (directProductFilters.maxPrice ? 'price_asc' : 'relevance'),
         limit: 5
       });
 

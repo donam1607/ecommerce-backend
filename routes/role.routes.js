@@ -8,6 +8,7 @@ const {
   readRoles,
   writeRoles,
 } = require('../utils/rolePermissions');
+const { logActivity } = require('../utils/activityLogger');
 
 router.get('/', protect, async (req, res) => {
   res.json({
@@ -31,6 +32,14 @@ router.post('/', protect, strictAdmin, async (req, res) => {
 
   const safePermissions = permissions.filter((permission) => ALL_PERMISSION_IDS.includes(permission));
   const updated = writeRoles([...roles, { id: roleId, name, description, locked: false, permissions: safePermissions }]);
+  await logActivity(req, {
+    action: 'create',
+    entityType: 'role',
+    entityId: roleId,
+    entityLabel: name,
+    description: `Created role "${name}"`,
+    metadata: { permissions: safePermissions }
+  });
   res.status(201).json({ roles: updated });
 });
 
@@ -51,6 +60,17 @@ router.put('/:id', protect, strictAdmin, async (req, res) => {
       ? { ...item, name: name || item.name, description, permissions: safePermissions }
       : item
   )));
+  await logActivity(req, {
+    action: 'update',
+    entityType: 'role',
+    entityId: roleId,
+    entityLabel: name || role.name,
+    description: `Updated role "${name || role.name}"`,
+    metadata: {
+      before: { name: role.name, permissions: role.permissions || [] },
+      after: { name: name || role.name, permissions: safePermissions }
+    }
+  });
 
   res.json({ roles: updated });
 });
@@ -64,6 +84,14 @@ router.delete('/:id', protect, strictAdmin, async (req, res) => {
   if (role.locked) return res.status(400).json({ message: 'Không thể xóa quyền hệ thống.' });
 
   const updated = writeRoles(roles.filter((item) => item.id !== roleId));
+  await logActivity(req, {
+    action: 'delete',
+    entityType: 'role',
+    entityId: roleId,
+    entityLabel: role.name,
+    description: `Deleted role "${role.name}"`,
+    metadata: { permissions: role.permissions || [] }
+  });
   res.json({ roles: updated });
 });
 

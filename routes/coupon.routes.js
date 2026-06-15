@@ -3,6 +3,7 @@ const router = express.Router();
 const { Coupon } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
 const { Op } = require('sequelize');
+const { logActivity } = require('../utils/activityLogger');
 
 // Helper to determine product condition from its badge (matches frontend Home.jsx logic)
 const getProductCondition = (badge) => {
@@ -109,6 +110,15 @@ router.post('/', protect, admin, permit('coupons.write'), async (req, res) => {
       usedCount: 0
     });
 
+    await logActivity(req, {
+      action: 'create',
+      entityType: 'coupon',
+      entityId: coupon.id,
+      entityLabel: coupon.code,
+      description: `Created coupon "${coupon.code}"`,
+      metadata: { discountType: coupon.discountType, discountValue: coupon.discountValue }
+    });
+
     res.status(201).json(serializeCoupon(coupon));
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo mã giảm giá', error: error.message });
@@ -146,6 +156,7 @@ router.put('/:id', protect, admin, permit('coupons.write'), async (req, res) => 
       }
     }
 
+    const previous = coupon.toJSON();
     await coupon.update({
       code: normalizedCode,
       description: description !== undefined ? description : coupon.description,
@@ -158,6 +169,30 @@ router.put('/:id', protect, admin, permit('coupons.write'), async (req, res) => 
       endDate: endDate !== undefined ? endDate : coupon.endDate,
       isActive: isActive !== undefined ? isActive : coupon.isActive,
       maxUses: maxUses !== undefined ? maxUses : coupon.maxUses
+    });
+
+    await logActivity(req, {
+      action: 'update',
+      entityType: 'coupon',
+      entityId: coupon.id,
+      entityLabel: coupon.code,
+      description: `Updated coupon "${coupon.code}"`,
+      metadata: {
+        before: {
+          code: previous.code,
+          isActive: previous.isActive,
+          startDate: previous.startDate,
+          endDate: previous.endDate,
+          maxUses: previous.maxUses
+        },
+        after: {
+          code: coupon.code,
+          isActive: coupon.isActive,
+          startDate: coupon.startDate,
+          endDate: coupon.endDate,
+          maxUses: coupon.maxUses
+        }
+      }
     });
 
     res.json(serializeCoupon(coupon));
@@ -173,7 +208,16 @@ router.delete('/:id', protect, admin, permit('coupons.write'), async (req, res) 
     if (!coupon) {
       return res.status(404).json({ message: 'Mã giảm giá không tồn tại!' });
     }
+    const deletedCoupon = coupon.toJSON();
     await coupon.destroy();
+    await logActivity(req, {
+      action: 'delete',
+      entityType: 'coupon',
+      entityId: deletedCoupon.id,
+      entityLabel: deletedCoupon.code,
+      description: `Deleted coupon "${deletedCoupon.code}"`,
+      metadata: { discountType: deletedCoupon.discountType, discountValue: deletedCoupon.discountValue }
+    });
     res.json({ message: 'Xóa mã giảm giá thành công!' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xóa mã giảm giá', error: error.message });

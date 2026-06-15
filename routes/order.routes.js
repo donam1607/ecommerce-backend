@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Order, Product } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
+const { logActivity } = require('../utils/activityLogger');
 
 // ---------------------------------------------------------
 // HELPER: MÁY TRẠNG THÁI KHO HÀNG TỰ ĐỘNG (STOCK TRANSITIONS)
@@ -162,6 +163,7 @@ router.put('/:id', protect, admin, permit('orders.write'), async (req, res) => {
     // LUẬT KHÓA EDIT (LOCK RULES):
     // Nếu đơn hàng đang giao (shipping), đã giao (delivered), đã hủy (cancelled) hoặc đổi trả (returned)
     // -> Khóa không cho phép sửa đổi thông tin khách hàng, số điện thoại, địa chỉ nhận hàng.
+    const previous = order.toJSON();
     const isLocked = ['shipping', 'delivered', 'cancelled', 'returned'].includes(order.orderStatus);
     const isChangingLockedCustomerInfo =
       (customerName !== undefined && customerName !== order.customerName) ||
@@ -188,6 +190,18 @@ router.put('/:id', protect, admin, permit('orders.write'), async (req, res) => {
 
     // Chạy thông qua Máy trạng thái Kho hàng
     await updateOrderAndManageInventory(order, updates, req.user);
+    await logActivity(req, {
+      action: 'update',
+      entityType: 'order',
+      entityId: order.id,
+      entityLabel: `#${order.id} - ${order.customerName}`,
+      description: `Updated order #${order.id}`,
+      metadata: {
+        updates,
+        before: { paymentStatus: previous.paymentStatus, orderStatus: previous.orderStatus },
+        after: { paymentStatus: order.paymentStatus, orderStatus: order.orderStatus }
+      }
+    });
 
     res.json({ message: 'Cập nhật chi tiết đơn hàng thành công!', order });
   } catch (error) {
@@ -204,12 +218,25 @@ router.put('/:id/status', protect, admin, permit('orders.write'), async (req, re
       return res.status(404).json({ message: 'Đơn hàng không tồn tại' });
     }
     
+    const previous = order.toJSON();
     const updates = {};
     if (paymentStatus) updates.paymentStatus = paymentStatus;
     if (orderStatus) updates.orderStatus = orderStatus;
     
     // Đồng bộ trạng thái đơn thông qua Máy trạng thái Kho
     await updateOrderAndManageInventory(order, updates, req.user);
+    await logActivity(req, {
+      action: 'status_update',
+      entityType: 'order',
+      entityId: order.id,
+      entityLabel: `#${order.id} - ${order.customerName}`,
+      description: `Updated order status #${order.id}`,
+      metadata: {
+        updates,
+        before: { paymentStatus: previous.paymentStatus, orderStatus: previous.orderStatus },
+        after: { paymentStatus: order.paymentStatus, orderStatus: order.orderStatus }
+      }
+    });
     
     res.json({ message: 'Cập nhật trạng thái đơn hàng thành công!', order });
   } catch (error) {
@@ -225,10 +252,22 @@ router.put('/:id/paid', protect, admin, permit('orders.write'), async (req, res)
       return res.status(404).json({ message: 'Đơn hàng không tồn tại' });
     }
     
+    const previous = order.toJSON();
     const updates = { paymentStatus: 'paid' };
     
     // Đồng bộ trạng thái đơn thông qua Máy trạng thái Kho
     await updateOrderAndManageInventory(order, updates, req.user);
+    await logActivity(req, {
+      action: 'payment_update',
+      entityType: 'order',
+      entityId: order.id,
+      entityLabel: `#${order.id} - ${order.customerName}`,
+      description: `Marked order #${order.id} as paid`,
+      metadata: {
+        before: { paymentStatus: previous.paymentStatus },
+        after: { paymentStatus: order.paymentStatus }
+      }
+    });
     
     res.json({ message: 'Đơn hàng đã được xác nhận thanh toán thành công!', order });
   } catch (error) {
@@ -245,6 +284,7 @@ router.delete('/:id', protect, admin, permit('orders.write'), async (req, res) =
     }
     
     // Đảm bảo hoàn trả kho hàng nếu đơn hàng này đã từng trừ kho mà bị xóa
+    const deletedOrder = order.toJSON();
     const isInventorySubtracted = order.paymentStatus === 'paid' && order.orderStatus !== 'cancelled' && order.orderStatus !== 'returned';
     if (isInventorySubtracted) {
       for (const item of order.orderItems) {
@@ -257,6 +297,18 @@ router.delete('/:id', protect, admin, permit('orders.write'), async (req, res) =
     }
     
     await order.destroy();
+    await logActivity(req, {
+      action: 'delete',
+      entityType: 'order',
+      entityId: deletedOrder.id,
+      entityLabel: `#${deletedOrder.id} - ${deletedOrder.customerName}`,
+      description: `Deleted order #${deletedOrder.id}`,
+      metadata: {
+        totalAmount: deletedOrder.totalAmount,
+        paymentStatus: deletedOrder.paymentStatus,
+        orderStatus: deletedOrder.orderStatus
+      }
+    });
     res.json({ message: 'Đã xóa hóa đơn thành công' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xóa đơn hàng', error: error.message });
