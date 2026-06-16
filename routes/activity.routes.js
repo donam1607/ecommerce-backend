@@ -61,4 +61,37 @@ router.get('/', protect, admin, permit('activity.read'), async (req, res) => {
   }
 });
 
+router.delete('/bulk', protect, admin, permit('activity.read'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const safeIds = ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+
+    if (safeIds.length === 0) {
+      return res.status(400).json({ message: 'Chưa có lịch sử hợp lệ để xóa.' });
+    }
+
+    const deleted = await ActivityLog.destroy({
+      where: { id: { [Op.in]: safeIds } }
+    });
+
+    res.json({ message: 'Đã xóa lịch sử hoạt động đã chọn.', deleted });
+  } catch (error) {
+    res.status(500).json({ message: 'Không thể xóa lịch sử hoạt động.', error: error.message });
+  }
+});
+
+router.delete('/:id', protect, admin, permit('activity.read'), async (req, res) => {
+  try {
+    const log = await ActivityLog.findByPk(req.params.id);
+    if (!log) {
+      return res.status(404).json({ message: 'Không tìm thấy lịch sử hoạt động.' });
+    }
+
+    await log.destroy();
+    res.json({ message: 'Đã xóa lịch sử hoạt động.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Không thể xóa lịch sử hoạt động.', error: error.message });
+  }
+});
+
 module.exports = router;
