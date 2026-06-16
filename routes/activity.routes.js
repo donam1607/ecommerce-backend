@@ -3,8 +3,18 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { ActivityLog } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
+const { hasPermission } = require('../utils/rolePermissions');
 
-router.get('/', protect, admin, permit('activity.read'), async (req, res) => {
+const canReadActivity = (req, res, next) => {
+  const role = req.user?.role;
+  if (role === 'admin' || hasPermission(role, 'screen.activity') || hasPermission(role, 'activity.read')) {
+    return next();
+  }
+
+  return res.status(403).json({ message: 'Ban khong co quyen xem lich su hoat dong.' });
+};
+
+router.get('/', protect, admin, canReadActivity, async (req, res) => {
   try {
     const {
       page = 1,

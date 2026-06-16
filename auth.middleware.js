@@ -29,7 +29,8 @@ const admin = (req, res, next) => {
     || hasPermission(role, 'screen.coupons')
     || hasPermission(role, 'screen.users')
     || hasPermission(role, 'screen.roles')
-    || hasPermission(role, 'screen.activity');
+    || hasPermission(role, 'screen.activity')
+    || hasPermission(role, 'activity.read');
 
   if (req.user && hasAdminScreen) {
     next();
