@@ -54,12 +54,10 @@ const DEFAULT_ROLES = [
       'screen.categories',
       'screen.orders',
       'screen.coupons',
-      'screen.activity',
       'products.write',
       'categories.write',
       'orders.write',
       'coupons.write',
-      'activity.read',
     ],
   },
   {
@@ -83,12 +81,14 @@ const normalizeRoleId = (value = '') => String(value).trim().toLowerCase().repla
 function mergeDefaults(roles) {
   const byId = new Map(roles.map((role) => [role.id, role]));
   DEFAULT_ROLES.forEach((role) => {
-    const saved = byId.get(role.id) || {};
+    const saved = byId.get(role.id);
     byId.set(role.id, {
       ...role,
       ...saved,
       locked: role.locked,
-      permissions: Array.from(new Set([...(role.permissions || []), ...(saved.permissions || [])])),
+      permissions: role.id === 'admin'
+        ? role.permissions
+        : (Array.isArray(saved?.permissions) ? saved.permissions : role.permissions),
     });
   });
   return Array.from(byId.values()).map((role) => ({
