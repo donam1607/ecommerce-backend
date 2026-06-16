@@ -7,7 +7,7 @@ const { hasPermission } = require('../utils/rolePermissions');
 
 const canReadActivity = (req, res, next) => {
   const role = req.user?.role;
-  if (role === 'admin' || hasPermission(role, 'screen.activity') || hasPermission(role, 'activity.read')) {
+  if (role === 'admin' || hasPermission(role, 'screen.activity')) {
     return next();
   }
 
@@ -71,7 +71,7 @@ router.get('/', protect, admin, canReadActivity, async (req, res) => {
   }
 });
 
-router.delete('/bulk', protect, admin, permit('activity.read'), async (req, res) => {
+router.delete('/bulk', protect, admin, permit('activity.delete'), async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
     const safeIds = ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
@@ -90,7 +90,7 @@ router.delete('/bulk', protect, admin, permit('activity.read'), async (req, res)
   }
 });
 
-router.delete('/:id', protect, admin, permit('activity.read'), async (req, res) => {
+router.delete('/:id', protect, admin, permit('activity.delete'), async (req, res) => {
   try {
     const log = await ActivityLog.findByPk(req.params.id);
     if (!log) {

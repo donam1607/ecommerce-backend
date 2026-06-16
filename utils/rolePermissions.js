@@ -28,7 +28,7 @@ const PERMISSION_GROUPS = [
       { id: 'coupons.write', label: 'Thêm/sửa/xóa khuyến mãi' },
       { id: 'users.write', label: 'Thêm/sửa/xóa thành viên' },
       { id: 'roles.write', label: 'Tạo/sửa quyền' },
-      { id: 'activity.read', label: 'Xem lịch sử hoạt động' },
+      { id: 'activity.delete', label: 'Xóa lịch sử hoạt động' },
     ],
   },
 ];
