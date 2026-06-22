@@ -163,7 +163,7 @@ router.post('/parse-specs', protect, admin, permit('products.write'), async (req
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
-          model: 'gemini-2.0-flash-lite',
+          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
           generationConfig: {
             temperature: 0.05,
             responseMimeType: 'application/json',
@@ -194,7 +194,11 @@ ${rawText}`;
         ]));
         parser = 'gemini';
       } catch (aiError) {
-        warning = 'Gemini không phản hồi, hệ thống đã dùng bộ phân tích cục bộ.';
+        const status = aiError?.status || aiError?.response?.status;
+        console.error('[Specs AI]', status || 'unknown', aiError?.message || aiError);
+        warning = status === 429
+          ? 'Gemini đã hết quota, hệ thống đã dùng bộ phân tích cục bộ.'
+          : 'Gemini tạm thời không phản hồi, hệ thống đã dùng bộ phân tích cục bộ.';
       }
     } else {
       warning = 'Máy chủ chưa cấu hình Gemini, hệ thống đã dùng bộ phân tích cục bộ.';
