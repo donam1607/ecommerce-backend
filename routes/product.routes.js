@@ -4,6 +4,13 @@ const { Product } = require('../db');
 const { protect, admin, permit } = require('../auth.middleware');
 const { logActivity } = require('../utils/activityLogger');
 
+const normalizeSpecs = (specs, fallback = []) => {
+  if (Array.isArray(specs)) return specs;
+  if (specs && typeof specs === 'object') return specs;
+  if (typeof specs === 'string') return specs.split('\n').map(s => s.trim()).filter(Boolean);
+  return fallback;
+};
+
 // @desc    Get all products
 // @route   GET /api/products
 router.get('/', async (req, res) => {
@@ -42,9 +49,7 @@ router.post('/', protect, admin, permit('products.write'), async (req, res) => {
       ? images
       : (typeof images === 'string' ? images.split(',').map(i => i.trim()).filter(Boolean) : []);
 
-    const specsArr = Array.isArray(specs)
-      ? specs
-      : (typeof specs === 'string' ? specs.split('\n').map(s => s.trim()).filter(Boolean) : []);
+    const specsData = normalizeSpecs(specs, []);
 
     const product = await Product.create({
       name,
@@ -54,7 +59,7 @@ router.post('/', protect, admin, permit('products.write'), async (req, res) => {
       price: parseFloat(price) || 0,
       images: imagesArr,
       description,
-      specs: specsArr,
+      specs: specsData,
       countInStock: parseInt(countInStock) || 0,
       badge: badge || null,
       isHot: isHot === true || isHot === 'true',
@@ -92,9 +97,7 @@ router.put('/:id', protect, admin, permit('products.write'), async (req, res) =>
         ? images
         : (typeof images === 'string' ? images.split(',').map(i => i.trim()).filter(Boolean) : product.images);
 
-      const specsArr = Array.isArray(specs)
-        ? specs
-        : (typeof specs === 'string' ? specs.split('\n').map(s => s.trim()).filter(Boolean) : product.specs);
+      const specsData = normalizeSpecs(specs, product.specs);
 
       const previous = product.toJSON();
 
@@ -105,7 +108,7 @@ router.put('/:id', protect, admin, permit('products.write'), async (req, res) =>
       product.price = price !== undefined ? parseFloat(price) : product.price;
       product.images = imagesArr;
       product.description = description !== undefined ? description : product.description;
-      product.specs = specsArr;
+      product.specs = specsData;
       product.countInStock = countInStock !== undefined ? parseInt(countInStock) : product.countInStock;
       product.badge = badge !== undefined ? badge : product.badge;
       product.isHot = isHot !== undefined ? (isHot === true || isHot === 'true') : product.isHot;
