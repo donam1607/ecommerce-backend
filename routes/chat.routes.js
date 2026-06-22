@@ -80,6 +80,23 @@ const CATEGORY_ALIASES = [
   { value: 'Accessories', terms: ['chuot', 'sac', 'pin', 'phu kien', 'accessories'] }
 ];
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function generateContentWithRetry(model, payload, maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await model.generateContent(payload);
+    } catch (error) {
+      lastError = error;
+      const status = error?.status || error?.response?.status;
+      if (status !== 503 || attempt === maxAttempts) throw error;
+      await wait(700 * (2 ** (attempt - 1)));
+    }
+  }
+  throw lastError;
+}
+
 const PURPOSE_SUBCATEGORY_ALIASES = [
   { value: 'Laptop gaming', terms: ['gaming', 'choi game', 'game'] },
   { value: 'Laptop văn phòng', terms: ['van phong', 'office', 'hoc tap', 'sinh vien', 'lam viec'] },
@@ -850,14 +867,12 @@ router.post('/', async (req, res) => {
 
   const apiKey = process.env.GEMINI_API_KEY;
   
-  // 1. Kiểm tra nếu chưa cấu hình GEMINI_API_KEY -> kích hoạt Mock AI Fallback ngay lập tức
+  // Do not impersonate Gemini with scripted answers when AI is unavailable.
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    try {
-      const fallbackResult = await runMockAIFallback(message, history || []);
-      return res.json(fallbackResult);
-    } catch (err) {
-      return res.status(500).json({ message: 'Lỗi bộ phân tích Mock AI Fallback', error: err.message });
-    }
+    return res.status(503).json({
+      message: 'Máy chủ chưa cấu hình Gemini AI.',
+      code: 'AI_NOT_CONFIGURED'
+    });
   }
   
   // 2. Chạy với Gemini API thực tế khi đã cấu hình KEY
@@ -1071,7 +1086,7 @@ Gợi ý dùng tool an toàn:
     });
     
     // 1. Gọi Gemini lần đầu
-    let result = await model.generateContent({ contents });
+    let result = await generateContentWithRetry(model, { contents });
     let response = result.response;
     
     const getFunctionCalls = (geminiResponse) => {
@@ -1119,7 +1134,7 @@ Gợi ý dùng tool an toàn:
       });
       
       // Gọi Gemini lần 2 để tổng hợp câu trả lời cuối cùng
-      result = await model.generateContent({ contents });
+      result = await generateContentWithRetry(model, { contents });
       response = result.response;
     }
     
@@ -1144,17 +1159,14 @@ Gợi ý dùng tool an toàn:
     });
     
   } catch (error) {
-    console.error('❌ Gemini Server error:', error);
-    // Tự động fallback sang Mock AI khi lỗi API xảy ra để bảo toàn trải nghiệm người dùng
-    try {
-      const fallbackResult = await runMockAIFallback(message, history || []);
-      return res.json({
-        ...fallbackResult,
-        warning: 'Đang chạy chế độ Mock AI do lỗi kết nối Gemini API.'
-      });
-    } catch (err) {
-      res.status(500).json({ message: 'Lỗi xử lý hội thoại AI.', error: error.message });
-    }
+    const status = error?.status || error?.response?.status;
+    console.error('Gemini Server error:', status || 'unknown', error?.message || error);
+    return res.status(503).json({
+      message: status === 429
+        ? 'Gemini AI đang hết hạn mức sử dụng. Vui lòng thử lại sau.'
+        : 'Gemini AI tạm thời không phản hồi. Vui lòng thử lại sau.',
+      code: status === 429 ? 'AI_QUOTA_EXCEEDED' : 'AI_UNAVAILABLE'
+    });
   }
 });
 
