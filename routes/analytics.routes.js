@@ -12,7 +12,6 @@ const dateKeyFor = (d) => new Date(d).toISOString().slice(0, 10);
 
 /**
  * Parse User-Agent string into human-readable device info.
- * No external npm package needed — regex based.
  */
 function parseUserAgent(ua) {
   if (!ua) return { deviceType: 'Unknown', browser: 'Unknown', os: 'Unknown' };
@@ -53,18 +52,16 @@ function parseUserAgent(ua) {
 }
 
 /**
- * Lookup geolocation from ip-api.com (free, no key, HTTP only).
- * Non-blocking — called after visit is saved, updates record async.
+ * Lookup geolocation & advanced network attributes from ip-api.com.
+ * Non-blocking updates.
  */
 async function lookupGeo(ip, visitRecord) {
-  // Skip private/local IPs
   if (!ip || /^(127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|::1|localhost)/i.test(ip)) return;
-  // Skip if geo already fetched
-  if (visitRecord.country) return;
+  if (visitRecord.country && visitRecord.isp) return; // Already resolved
 
   try {
     const res = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city`,
+      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city,isp,mobile,proxy`,
       { signal: AbortSignal.timeout(4000) }
     );
     const data = await res.json();
@@ -74,18 +71,20 @@ async function lookupGeo(ip, visitRecord) {
         countryCode: data.countryCode || null,
         city: data.city || null,
         region: data.regionName || null,
+        isp: data.isp || null,
+        isMobileData: !!data.mobile,
+        isVpn: !!data.proxy,
       });
     }
   } catch (_) {
-    // Geolocation is non-critical, silently ignore errors
+    // Non-blocking catch
   }
 }
 
-/** Mask last octet of IPv4 or last group of IPv6 for privacy */
 function maskIp(ip) {
   if (!ip) return null;
-  if (ip.includes(':')) return ip.replace(/:[^:]+$/, ':****'); // IPv6
-  return ip.replace(/\.\d+$/, '.***'); // IPv4
+  if (ip.includes(':')) return ip.replace(/:[^:]+$/, ':****');
+  return ip.replace(/\.\d+$/, '.***');
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
@@ -93,7 +92,7 @@ function maskIp(ip) {
 // POST /api/analytics/visit (Public)
 router.post('/visit', async (req, res) => {
   try {
-    const { visitorId, userId } = req.body;
+    const { visitorId, userId, screenResolution, browserLanguage, entryPage, referrer } = req.body;
 
     if (!visitorId || typeof visitorId !== 'string' || visitorId.length > 64) {
       return res.status(400).json({ error: 'visitorId required (max 64 chars)' });
@@ -117,6 +116,10 @@ router.post('/visit', async (req, res) => {
         lastSeen: new Date(),
         userAgent: req.headers['user-agent'] || null,
         ipAddress: rawIp,
+        screenResolution: screenResolution || null,
+        browserLanguage: browserLanguage || null,
+        entryPage: entryPage || null,
+        referrer: referrer || null,
       },
     });
 
@@ -125,10 +128,15 @@ router.post('/visit', async (req, res) => {
         pageViews: visit.pageViews + 1,
         lastSeen: new Date(),
         ...(userId && !visit.userId ? { userId } : {}),
+        // Update properties if missing
+        ...(screenResolution && !visit.screenResolution ? { screenResolution } : {}),
+        ...(browserLanguage && !visit.browserLanguage ? { browserLanguage } : {}),
+        ...(entryPage && !visit.entryPage ? { entryPage } : {}),
+        ...(referrer && !visit.referrer ? { referrer } : {}),
       });
     }
 
-    // Geolocation lookup is fire-and-forget (non-blocking)
+    // Fire-and-forget IP geolocation lookup
     lookupGeo(rawIp, visit);
 
     res.status(200).json({ ok: true, created });
@@ -139,19 +147,24 @@ router.post('/visit', async (req, res) => {
 });
 
 // GET /api/analytics/stats (Admin)
+// Supports optional date parameter: ?date=YYYY-MM-DD
 router.get('/stats', protect, admin, async (req, res) => {
   try {
     const today = todayKey();
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterday = dateKeyFor(yesterdayDate);
+    const targetDate = req.query.date || today;
+
+    // Calculate previous day for growth comparison
+    const targetDateObj = new Date(targetDate + 'T12:00:00');
+    const prevDateObj = new Date(targetDateObj);
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const yesterday = dateKeyFor(prevDateObj);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
     const thirtyDaysAgoKey = dateKeyFor(thirtyDaysAgo);
 
     const [todayVisits, yestVisits, allVisits, last30Raw] = await Promise.all([
-      PageVisit.findAll({ where: { dateKey: today } }),
+      PageVisit.findAll({ where: { dateKey: targetDate } }),
       PageVisit.findAll({ where: { dateKey: yesterday } }),
       PageVisit.findAll({ attributes: ['visitorId', 'userId', 'pageViews'] }),
       PageVisit.findAll({
@@ -199,6 +212,7 @@ router.get('/stats', protect, admin, async (req, res) => {
       ? (((todayPageViews - yestPageViews) / yestPageViews) * 100).toFixed(1) : null;
 
     res.json({
+      targetDate,
       today: { uniqueVisitors: todayUniqueVisitors, loggedIn: todayLoggedIn, pageViews: todayPageViews },
       yesterday: { uniqueVisitors: yestUniqueVisitors, pageViews: yestPageViews },
       growth: { visitors: visitorGrowth, pageViews: pageViewGrowth },
@@ -211,15 +225,23 @@ router.get('/stats', protect, admin, async (req, res) => {
   }
 });
 
-// GET /api/analytics/devices (Admin) — device detail table
+// GET /api/analytics/devices (Admin)
+// Query params: ?date=YYYY-MM-DD&loggedInOnly=true&page=1&limit=50
 router.get('/devices', protect, admin, async (req, res) => {
   try {
-    const { date, page = 1, limit = 50 } = req.query;
+    const { date, loggedInOnly, page = 1, limit = 50 } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
     const offset = (pageNum - 1) * limitNum;
 
-    const where = date ? { dateKey: date } : {};
+    // Build query conditions
+    const where = {};
+    if (date) {
+      where.dateKey = date;
+    }
+    if (loggedInOnly === 'true') {
+      where.userId = { [Op.ne]: null };
+    }
 
     const { count, rows } = await PageVisit.findAndCountAll({
       where,
@@ -228,7 +250,7 @@ router.get('/devices', protect, admin, async (req, res) => {
       offset,
     });
 
-    // Enrich with user info for logged-in devices
+    // Populate user account names/emails
     const userIds = [...new Set(rows.filter(r => r.userId).map(r => r.userId))];
     let userMap = {};
     if (userIds.length > 0) {
@@ -248,17 +270,25 @@ router.get('/devices', protect, admin, async (req, res) => {
         pageViews: v.pageViews,
         firstSeen: v.firstSeen,
         lastSeen: v.lastSeen,
-        // Device info
+        // Tech details
         deviceType: ua.deviceType,
         browser: ua.browser,
         os: ua.os,
+        screenResolution: v.screenResolution || 'Unknown',
+        browserLanguage: v.browserLanguage || 'Unknown',
+        entryPage: v.entryPage || 'Unknown',
+        referrer: v.referrer || 'Direct',
         // Location
         ip: maskIp(v.ipAddress),
         country: v.country || null,
         countryCode: v.countryCode || null,
         city: v.city || null,
         region: v.region || null,
-        // User
+        // Advanced Network Info
+        isp: v.isp || 'Local/LAN',
+        isMobileData: !!v.isMobileData,
+        isVpn: !!v.isVpn,
+        // User accounts
         userId: v.userId || null,
         userName: v.userId && userMap[v.userId] ? userMap[v.userId].name : null,
         userEmail: v.userId && userMap[v.userId] ? userMap[v.userId].email : null,

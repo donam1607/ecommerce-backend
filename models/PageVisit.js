@@ -39,7 +39,7 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(64),
       allowNull: true,
     },
-    // Geolocation fields — filled asynchronously via ip-api.com after visit recorded
+    // Geolocation fields
     country: {
       type: DataTypes.STRING(80),
       allowNull: true,
@@ -55,6 +55,36 @@ module.exports = (sequelize) => {
     region: {
       type: DataTypes.STRING(100),
       allowNull: true,
+    },
+    // Technical properties from client
+    screenResolution: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    browserLanguage: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+    },
+    entryPage: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    referrer: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // Advanced network attributes
+    isp: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    isMobileData: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    isVpn: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   }, {
     tableName: 'page_visits',
