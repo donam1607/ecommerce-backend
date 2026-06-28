@@ -39,6 +39,23 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(64),
       allowNull: true,
     },
+    // Geolocation fields — filled asynchronously via ip-api.com after visit recorded
+    country: {
+      type: DataTypes.STRING(80),
+      allowNull: true,
+    },
+    countryCode: {
+      type: DataTypes.STRING(4),
+      allowNull: true,
+    },
+    city: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    region: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
   }, {
     tableName: 'page_visits',
     timestamps: true,
