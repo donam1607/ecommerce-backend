@@ -151,7 +151,12 @@ router.post('/visit', async (req, res) => {
 router.get('/stats', protect, admin, async (req, res) => {
   try {
     const today = todayKey();
-    const targetDate = req.query.date || today;
+    let targetDate = req.query.date;
+
+    // Validate YYYY-MM-DD format, fallback to today if invalid
+    if (!targetDate || typeof targetDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      targetDate = today;
+    }
 
     // Calculate previous day for growth comparison
     const targetDateObj = new Date(targetDate + 'T12:00:00');
