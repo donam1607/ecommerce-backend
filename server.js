@@ -546,8 +546,26 @@ app.get('/api/status', (req, res) => {
 
 
 sequelize.authenticate()
-  .then(() => {
+  .then(async () => {
     console.log('✅ Connected to PostgreSQL Database.');
+    
+    // Tự động chạy SQL thô tạo bảng ProductAnalyses để phòng tránh lỗi 500 do thiếu bảng trên môi trường deploy online (Render/Supabase)
+    try {
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "ProductAnalyses" (
+          "id" SERIAL PRIMARY KEY,
+          "productId" INTEGER UNIQUE NOT NULL,
+          "content" TEXT NOT NULL DEFAULT '',
+          "updatedBy" INTEGER,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Checked/Created ProductAnalyses table via raw SQL.');
+    } catch (sqlErr) {
+      console.warn('⚠️ Warning checking/creating ProductAnalyses table:', sqlErr.message);
+    }
+
     // Đồng bộ database (tạo bảng nếu chưa có)
     return sequelize.sync({ alter: true });
   })
