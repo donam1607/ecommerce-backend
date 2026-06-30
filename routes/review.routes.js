@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Review, Product } = require('../db');
-const { protect } = require('../auth.middleware');
+const { protect, admin } = require('../auth.middleware');
 
 // GET /api/products/:id/reviews — danh sách đánh giá + tổng hợp rating
 router.get('/:id/reviews', async (req, res) => {
@@ -72,6 +72,36 @@ router.post('/:id/reviews', async (req, res) => {
   } catch (err) {
     console.error('POST review error:', err);
     res.status(500).json({ message: 'Lỗi lưu đánh giá', error: err.message });
+  }
+});
+
+// DELETE /api/products/:id/reviews/:reviewId — Admin xóa đánh giá của sản phẩm
+router.delete('/:id/reviews/:reviewId', protect, admin, async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.reviewId);
+
+    const review = await Review.findOne({ where: { id: reviewId, productId } });
+    if (!review) return res.status(404).json({ message: 'Không tìm thấy đánh giá cần xóa' });
+
+    await review.destroy();
+
+    // Cập nhật lại rating và reviews count trên Product
+    const product = await Product.findByPk(productId);
+    if (product) {
+      const allReviews = await Review.findAll({ where: { productId }, attributes: ['rating'] });
+      const total = allReviews.length;
+      const newAvg = total > 0 ? allReviews.reduce((sum, r) => sum + r.rating, 0) / total : 0;
+      await product.update({
+        rating: total > 0 ? Math.round(newAvg * 10) / 10 : 0,
+        reviews: total,
+      });
+    }
+
+    res.json({ message: 'Đã xóa đánh giá thành công!' });
+  } catch (err) {
+    console.error('DELETE review error:', err);
+    res.status(500).json({ message: 'Lỗi xóa đánh giá', error: err.message });
   }
 });
 
