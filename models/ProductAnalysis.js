@@ -5,7 +5,7 @@ module.exports = (sequelize) => {
     id:        { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     productId: { type: DataTypes.INTEGER, allowNull: false, unique: true },
     content:   { type: DataTypes.TEXT, allowNull: false, defaultValue: '' },
-    updatedBy: { type: DataTypes.INTEGER, allowNull: true }, // admin userId
+    updatedBy: { type: DataTypes.STRING(64), allowNull: true }, // admin userId
   }, {
     timestamps: true,
     tableName: 'ProductAnalyses',

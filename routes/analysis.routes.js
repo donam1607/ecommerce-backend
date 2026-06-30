@@ -3,6 +3,10 @@ const router = express.Router();
 const { ProductAnalysis } = require('../db');
 const { protect, admin } = require('../auth.middleware');
 
+const isUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 // GET /api/products/:id/analysis — lấy bài phân tích
 router.get('/:id/analysis', async (req, res) => {
   try {
@@ -24,12 +28,13 @@ router.put('/:id/analysis', protect, admin, async (req, res) => {
     if (typeof content === 'undefined') {
       return res.status(400).json({ message: 'Thiếu nội dung bài phân tích' });
     }
+    const updatedBy = isUuid(req.user?.id) ? req.user.id : null;
     const [analysis, created] = await ProductAnalysis.findOrCreate({
       where: { productId },
-      defaults: { productId, content, updatedBy: req.user?.id },
+      defaults: { productId, content, updatedBy },
     });
     if (!created) {
-      await analysis.update({ content, updatedBy: req.user?.id });
+      await analysis.update({ content, updatedBy });
     }
     res.json({ message: 'Đã lưu bài phân tích', analysis });
   } catch (err) {

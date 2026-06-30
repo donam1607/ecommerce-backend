@@ -3,6 +3,10 @@ const router = express.Router();
 const { Review, Product } = require('../db');
 const { protect, admin } = require('../auth.middleware');
 
+const isUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 // GET /api/products/:id/reviews — danh sách đánh giá + tổng hợp rating
 router.get('/:id/reviews', async (req, res) => {
   try {
@@ -56,7 +60,7 @@ router.post('/:id/reviews', async (req, res) => {
       rating: parseInt(rating),
       name: name?.trim() || 'Khách hàng ẩn danh',
       comment: comment?.trim() || null,
-      userId: userId || null,
+      userId: isUuid(userId) ? userId : null,
       badge: badge || null,
     });
 

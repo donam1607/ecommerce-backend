@@ -9,7 +9,7 @@ module.exports = (sequelize) => {
     comment:   { type: DataTypes.TEXT, allowNull: true },
     // Badge: 'verified' for logged-in users, null for guests
     badge:     { type: DataTypes.STRING(20), allowNull: true },
-    userId:    { type: DataTypes.INTEGER, allowNull: true },
+    userId:    { type: DataTypes.STRING(64), allowNull: true },
   }, {
     timestamps: true,
     tableName: 'Reviews',
