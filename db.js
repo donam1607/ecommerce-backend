@@ -24,12 +24,20 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   }
 });
 
-const User = require('./models/User')(sequelize);
-const Product = require('./models/Product')(sequelize);
-const Order = require('./models/Order')(sequelize);
-const Coupon = require('./models/Coupon')(sequelize);
-const ActivityLog = require('./models/ActivityLog')(sequelize);
-const PageVisit = require('./models/PageVisit')(sequelize);
+const User            = require('./models/User')(sequelize);
+const Product         = require('./models/Product')(sequelize);
+const Order           = require('./models/Order')(sequelize);
+const Coupon          = require('./models/Coupon')(sequelize);
+const ActivityLog     = require('./models/ActivityLog')(sequelize);
+const PageVisit       = require('./models/PageVisit')(sequelize);
+const Review          = require('./models/Review')(sequelize);
+const ProductAnalysis = require('./models/ProductAnalysis')(sequelize);
 
-module.exports = { sequelize, User, Product, Order, Coupon, ActivityLog, PageVisit };
+// Associations
+Product.hasMany(Review, { foreignKey: 'productId', as: 'productReviews', onDelete: 'CASCADE' });
+Review.belongsTo(Product, { foreignKey: 'productId' });
 
+Product.hasOne(ProductAnalysis, { foreignKey: 'productId', as: 'analysis', onDelete: 'CASCADE' });
+ProductAnalysis.belongsTo(Product, { foreignKey: 'productId' });
+
+module.exports = { sequelize, User, Product, Order, Coupon, ActivityLog, PageVisit, Review, ProductAnalysis };

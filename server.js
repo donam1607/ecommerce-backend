@@ -5,9 +5,17 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const {
+  corsOptions,
+  securityHeaders,
+  requestLimiters,
+  handleCorsError,
+  handlePayloadError,
+} = require('./middleware/security.middleware');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+app.set('trust proxy', 1);
 
 // Đảm bảo thư mục uploads tồn tại để tránh lỗi khi upload ảnh
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -17,8 +25,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Middlewares
-app.use(cors());
-app.use(express.json());
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(handleCorsError);
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.URLENCODED_BODY_LIMIT || '1mb' }));
+app.use(handlePayloadError);
+// Phục vụ tĩnh thư mục uploads
 // Phục vụ tĩnh thư mục uploads
 app.use('/uploads', express.static(uploadsDir));
 
@@ -36,6 +49,16 @@ const chatRoutes = require('./routes/chat.routes');
 const roleRoutes = require('./routes/role.routes');
 const activityRoutes = require('./routes/activity.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const reviewRoutes = require('./routes/review.routes');
+const analysisRoutes = require('./routes/analysis.routes');
+
+app.use('/api', requestLimiters.api);
+app.use('/api/auth/login', requestLimiters.auth);
+app.use('/api/auth/register', requestLimiters.auth);
+app.use('/api/auth/google', requestLimiters.auth);
+app.use('/api/chat', requestLimiters.chat);
+app.use('/api/upload', requestLimiters.upload);
+app.use('/api/coupons/validate', requestLimiters.coupon);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -47,7 +70,8 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/activity-logs', activityRoutes);
 app.use('/api/analytics', analyticsRoutes);
-
+app.use('/api/products', reviewRoutes);
+app.use('/api/products', analysisRoutes);
 
 // Root route - Beautiful Glassmorphic API Documentation
 app.get('/', (req, res) => {
@@ -63,12 +87,7 @@ app.get('/', (req, res) => {
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
       <style>
         :root {
-          --bg-dark: #090d16;
-          --panel-bg: rgba(17, 24, 39, 0.7);
-          --border: rgba(255, 255, 255, 0.08);
-          --text-main: #f3f4f6;
-          --text-mute: #9ca3af;
-          --primary: #3b82f6;
+          --primary:  #3b82f6;
           --primary-glow: rgba(59, 130, 246, 0.15);
           
           --get-color: #10b981;
