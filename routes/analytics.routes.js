@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { PageVisit, User } = require('../db');
+const { PageVisit, User, UserEvent } = require('../db');
 const { protect, admin } = require('../auth.middleware');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -87,6 +87,12 @@ function maskIp(ip) {
   return ip.replace(/\.\d+$/, '.***');
 }
 
+function safeMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const json = JSON.stringify(value);
+  return json.length > 4000 ? { note: 'metadata_too_large' } : value;
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 // POST /api/analytics/visit (Public)
@@ -142,6 +148,34 @@ router.post('/visit', async (req, res) => {
     res.status(200).json({ ok: true, created });
   } catch (err) {
     console.error('[analytics/visit]', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/event', async (req, res) => {
+  try {
+    const { visitorId, userId, eventType, page, productId, metadata } = req.body;
+    if (!visitorId || typeof visitorId !== 'string' || visitorId.length > 64) {
+      return res.status(400).json({ error: 'visitorId required (max 64 chars)' });
+    }
+    if (!eventType || typeof eventType !== 'string' || eventType.length > 60) {
+      return res.status(400).json({ error: 'eventType required (max 60 chars)' });
+    }
+
+    const rawIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+    await UserEvent.create({
+      visitorId,
+      userId: userId || null,
+      eventType,
+      page: typeof page === 'string' ? page.slice(0, 1000) : null,
+      productId: productId ? Number(productId) : null,
+      metadata: safeMetadata(metadata),
+      userAgent: req.headers['user-agent'] || null,
+      ipAddress: rawIp,
+    });
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('[analytics/event]', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -309,6 +343,62 @@ router.get('/devices', protect, admin, async (req, res) => {
     });
   } catch (err) {
     console.error('[analytics/devices]', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/events', protect, admin, async (req, res) => {
+  try {
+    const { visitorId, userId, eventType, productId, date, page = 1, limit = 50 } = req.query;
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const where = {};
+    if (visitorId) where.visitorId = String(visitorId).slice(0, 64);
+    if (userId) where.userId = String(userId).slice(0, 64);
+    if (eventType && eventType !== 'all') where.eventType = String(eventType).slice(0, 60);
+    if (productId) where.productId = Number(productId);
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      where.createdAt = {
+        [Op.gte]: new Date(`${date}T00:00:00.000Z`),
+        [Op.lt]: new Date(`${date}T23:59:59.999Z`),
+      };
+    }
+
+    const { count, rows } = await UserEvent.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+    });
+
+    const userIds = [...new Set(rows.filter(r => r.userId).map(r => r.userId))];
+    const userMap = {};
+    if (userIds.length > 0) {
+      const users = await User.findAll({ where: { id: userIds }, attributes: ['id', 'name', 'email'] });
+      users.forEach(u => { userMap[u.id] = { name: u.name, email: u.email }; });
+    }
+
+    res.json({
+      total: count,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(count / limitNum),
+      events: rows.map(event => ({
+        id: event.id,
+        visitorId: event.visitorId,
+        userId: event.userId,
+        userName: event.userId && userMap[event.userId] ? userMap[event.userId].name : null,
+        userEmail: event.userId && userMap[event.userId] ? userMap[event.userId].email : null,
+        eventType: event.eventType,
+        page: event.page,
+        productId: event.productId,
+        metadata: event.metadata || {},
+        ip: maskIp(event.ipAddress),
+        createdAt: event.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('[analytics/events]', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

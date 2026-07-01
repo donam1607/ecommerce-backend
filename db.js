@@ -30,6 +30,7 @@ const Order           = require('./models/Order')(sequelize);
 const Coupon          = require('./models/Coupon')(sequelize);
 const ActivityLog     = require('./models/ActivityLog')(sequelize);
 const PageVisit       = require('./models/PageVisit')(sequelize);
+const UserEvent       = require('./models/UserEvent')(sequelize);
 const Review          = require('./models/Review')(sequelize);
 const ProductAnalysis = require('./models/ProductAnalysis')(sequelize);
 
@@ -40,4 +41,4 @@ Review.belongsTo(Product, { foreignKey: 'productId' });
 Product.hasOne(ProductAnalysis, { foreignKey: 'productId', as: 'analysis', onDelete: 'CASCADE' });
 ProductAnalysis.belongsTo(Product, { foreignKey: 'productId' });
 
-module.exports = { sequelize, User, Product, Order, Coupon, ActivityLog, PageVisit, Review, ProductAnalysis };
+module.exports = { sequelize, User, Product, Order, Coupon, ActivityLog, PageVisit, UserEvent, Review, ProductAnalysis };
